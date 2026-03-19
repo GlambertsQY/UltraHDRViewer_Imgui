@@ -50,3 +50,10 @@ desktop.ini
 
 # Logs
 *.log
+
+# Test assets (exclude test data shipped with deps)
+*.jpg
+*.jpeg
+*.png
+*.bmp
+!deps/libultrahdr/tests/data/*.jpg

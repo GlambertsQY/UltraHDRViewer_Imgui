@@ -1,0 +1,10 @@
+plugins {
+    id 'com.android.application' version '7.4.2' apply false
+}
+
+ext {
+    compileSdkVersion = 34
+    minSdkVersion = 24
+    targetSdkVersion = 34
+    depsPath = rootProject.projectDir.parent + "/deps"
+}

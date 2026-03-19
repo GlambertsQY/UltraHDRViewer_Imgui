@@ -40,6 +40,15 @@ rules.ninja
 *.ninja_deps
 *.ninja_log
 
+# Android build outputs
+android/.gradle/
+android/.cxx/
+android/app/build/
+android/app/.cxx/
+android/build/
+android/*.apk
+android/local.properties
+
 # Dependencies (cloned via clone_deps scripts)
 deps/
 

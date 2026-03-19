@@ -12,7 +12,7 @@ echo.
 if not exist "%DEPS_DIR%" mkdir "%DEPS_DIR%"
 
 :: --- GLFW 3.4 ---
-echo [1/4] Cloning GLFW 3.4...
+echo [1/5] Cloning GLFW 3.4...
 if exist "%DEPS_DIR%\glfw\CMakeLists.txt" (
     echo   Already exists, skipping.
 ) else (
@@ -26,7 +26,7 @@ if exist "%DEPS_DIR%\glfw\CMakeLists.txt" (
 echo.
 
 :: --- Dear ImGui v1.91.8 ---
-echo [2/4] Cloning Dear ImGui v1.91.8...
+echo [2/5] Cloning Dear ImGui v1.91.8...
 if exist "%DEPS_DIR%\imgui\imgui.h" (
     echo   Already exists, skipping.
 ) else (
@@ -40,7 +40,7 @@ if exist "%DEPS_DIR%\imgui\imgui.h" (
 echo.
 
 :: --- libultrahdr v1.4.0 (full clone - needs third_party/turbojpeg) ---
-echo [3/4] Cloning libultrahdr v1.4.0...
+echo [3/5] Cloning libultrahdr v1.4.0...
 if exist "%DEPS_DIR%\libultrahdr\CMakeLists.txt" (
     echo   Already exists, skipping.
 ) else (
@@ -53,8 +53,18 @@ if exist "%DEPS_DIR%\libultrahdr\CMakeLists.txt" (
 )
 echo.
 
+:: --- stb_image.h (single-file image library) ---
+echo [4/5] Downloading stb_image.h...
+if exist "%DEPS_DIR%\stb_image.h" (
+    echo   Already exists, skipping.
+) else (
+    powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/nothings/stb/master/stb_image.h' -OutFile '%DEPS_DIR%\stb_image.h'"
+    echo   Done.
+)
+echo.
+
 :: --- Patch turbojpeg CMakeLists.txt (skip BuildPackages.cmake and its dependencies) ---
-echo [4/4] Patching turbojpeg CMakeLists.txt...
+echo [5/5] Patching turbojpeg CMakeLists.txt...
 set TURBOJPEG=%DEPS_DIR%\libultrahdr\third_party\turbojpeg
 
 if exist "%TURBOJPEG%\CMakeLists.txt" (

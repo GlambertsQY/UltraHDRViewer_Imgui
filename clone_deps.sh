@@ -12,7 +12,7 @@ echo
 mkdir -p "$DEPS_DIR"
 
 # --- GLFW 3.4 ---
-echo "[1/5] Cloning GLFW 3.4..."
+echo "[1/6] Cloning GLFW 3.4..."
 if [ -f "${DEPS_DIR}/glfw/CMakeLists.txt" ]; then
     echo "  Already exists, skipping."
 else
@@ -22,7 +22,7 @@ fi
 echo
 
 # --- Dear ImGui v1.91.8 ---
-echo "[2/5] Cloning Dear ImGui v1.91.8..."
+echo "[2/6] Cloning Dear ImGui v1.91.8..."
 if [ -f "${DEPS_DIR}/imgui/imgui.h" ]; then
     echo "  Already exists, skipping."
 else
@@ -32,7 +32,7 @@ fi
 echo
 
 # --- libultrahdr v1.4.0 (full clone) ---
-echo "[3/5] Cloning libultrahdr v1.4.0..."
+echo "[3/6] Cloning libultrahdr v1.4.0..."
 if [ -f "${DEPS_DIR}/libultrahdr/CMakeLists.txt" ]; then
     echo "  Already exists, skipping."
 else
@@ -42,7 +42,7 @@ fi
 echo
 
 # --- stb_image.h (single-file image library) ---
-echo "[4/5] Downloading stb_image.h..."
+echo "[4/6] Downloading stb_image.h..."
 if [ -f "${DEPS_DIR}/stb_image.h" ]; then
     echo "  Already exists, skipping."
 else
@@ -51,10 +51,21 @@ else
 fi
 echo
 
-# --- Patch turbojpeg CMakeLists.txt ---
-echo "[5/5] Patching turbojpeg CMakeLists.txt..."
-TURBOJPEG="${DEPS_DIR}/libultrahdr/third_party/turbojpeg"
+# --- SDL2 2.30.x (for Android support) ---
+echo "[5/6] Cloning SDL2 2.30.8..."
+if [ -f "${DEPS_DIR}/sdl2/include/SDL.h" ]; then
+    echo "  Already exists, skipping."
+else
+    git clone --depth 1 --branch release-2.30.8 https://github.com/libsdl-org/SDL.git "${DEPS_DIR}/sdl2"
+    echo "  Done."
+fi
+echo
 
+# --- Patch turbojpeg CMakeLists.txt (libultrahdr third_party + Android deps) ---
+echo "[6/6] Patching turbojpeg CMakeLists.txt..."
+
+# Patch 1: libultrahdr/third_party/turbojpeg (for ExternalProject and Windows builds)
+TURBOJPEG="${DEPS_DIR}/libultrahdr/third_party/turbojpeg"
 if [ -f "${TURBOJPEG}/CMakeLists.txt" ]; then
     # Comment out BuildPackages.cmake include
     sed -i 's|^(include(cmakescripts/BuildPackages.cmake))$| # Patched by clone_deps.sh: skip BuildPackages\n\1|' "${TURBOJPEG}/CMakeLists.txt" 2>/dev/null || \
@@ -72,9 +83,90 @@ if [ -f "${TURBOJPEG}/CMakeLists.txt" ]; then
         cp "${TURBOJPEG}/win/vc/projectTargets-release.cmake.in" "${TURBOJPEG}/win/projectTargets-release.cmake.in"
         echo "  Created missing win/projectTargets-release.cmake.in"
     fi
-    echo "  Patched."
+    echo "  libultrahdr/third_party/turbojpeg patched."
 else
-    echo "  turbojpeg not found, skipping."
+    echo "  libultrahdr/third_party/turbojpeg not found, skipping."
+fi
+
+# Patch 2: deps/turbojpeg (for Android add_subdirectory builds)
+TURBOJPEG_DEPS="${DEPS_DIR}/turbojpeg"
+if [ -f "${TURBOJPEG_DEPS}/CMakeLists.txt" ]; then
+    # Add subproject guard after cmake_minimum_required
+    if ! grep -q "TURBOJPEG_IS_SUBPROJECT" "${TURBOJPEG_DEPS}/CMakeLists.txt"; then
+        python3 -c "
+import sys
+with open('${TURBOJPEG_DEPS}/CMakeLists.txt', 'r') as f:
+    content = f.read()
+
+# Add subproject guard after cmake_minimum_required
+guard = '''if(TURBOJPEG_IS_SUBPROJECT)
+    set(CMAKE_INSTALL_DOCDIR \"doc\" CACHE PATH \"\")
+    set(CMAKE_INSTALL_INCLUDEDIR \"include\" CACHE PATH \"\")
+    set(_TJ_SKIP_INSTALL ON)
+endif()
+'''
+idx = content.find('if(POLICY CMP0065)')
+if idx != -1:
+    content = content[:idx] + guard + content[idx:]
+with open('${TURBOJPEG_DEPS}/CMakeLists.txt', 'w') as f:
+    f.write(content)
+"
+        echo "  Added TURBOJPEG_IS_SUBPROJECT guard."
+    fi
+
+    # Wrap install blocks with _TJ_SKIP_INSTALL
+    python3 -c "
+import re
+with open('${TURBOJPEG_DEPS}/CMakeLists.txt', 'r') as f:
+    content = f.read()
+
+# Wrap the main install section
+old = '''install(TARGETS rdjpgcom wrjpgcom RUNTIME DESTINATION \${CMAKE_INSTALL_BINDIR})
+
+install(FILES \${CMAKE_CURRENT_SOURCE_DIR}/README.ijg'''
+new = '''if(NOT _TJ_SKIP_INSTALL)
+install(TARGETS rdjpgcom wrjpgcom RUNTIME DESTINATION \${CMAKE_INSTALL_BINDIR})
+
+install(FILES \${CMAKE_CURRENT_SOURCE_DIR}/README.ijg'''
+content = content.replace(old, new)
+
+old2 = '''install(FILES \${CMAKE_CURRENT_BINARY_DIR}/jconfig.h
+  \${CMAKE_CURRENT_SOURCE_DIR}/jerror.h \${CMAKE_CURRENT_SOURCE_DIR}/jmorecfg.h
+  \${CMAKE_CURRENT_SOURCE_DIR}/jpeglib.h
+  DESTINATION \${CMAKE_INSTALL_INCLUDEDIR})
+
+include(cmakescripts/BuildPackages.cmake)
+
+configure_file'''
+new2 = '''install(FILES \${CMAKE_CURRENT_BINARY_DIR}/jconfig.h
+  \${CMAKE_CURRENT_SOURCE_DIR}/jerror.h \${CMAKE_CURRENT_SOURCE_DIR}/jmorecfg.h
+  \${CMAKE_CURRENT_SOURCE_DIR}/jpeglib.h
+  DESTINATION \${CMAKE_INSTALL_INCLUDEDIR})
+endif() # _TJ_SKIP_INSTALL
+
+include(cmakescripts/BuildPackages.cmake)
+
+if(NOT _TJ_SKIP_INSTALL)
+configure_file'''
+content = content.replace(old2, new2)
+
+old3 = '''add_custom_target(uninstall COMMAND \${CMAKE_COMMAND} -P cmake_uninstall.cmake)'''
+new3 = '''add_custom_target(uninstall COMMAND \${CMAKE_COMMAND} -P cmake_uninstall.cmake)
+endif()'''
+content = content.replace(old3, new3)
+
+with open('${TURBOJPEG_DEPS}/CMakeLists.txt', 'w') as f:
+    f.write(content)
+" 2>/dev/null || echo "  (Python patch skipped)"
+    echo "  deps/turbojpeg patched for Android."
+else
+    echo "  deps/turbojpeg not found, skipping."
+fi
+
+# Patch 3: Also clone deps/turbojpeg if it doesn't exist (needed for Android)
+if [ ! -d "${TURBOJPEG_DEPS}" ]; then
+    git clone --depth 1 --branch 3.0.1 https://github.com/libjpeg-turbo/libjpeg-turbo.git "${TURBOJPEG_DEPS}"
+    echo "  Cloned deps/turbojpeg for Android."
 fi
 echo
 
@@ -82,6 +174,11 @@ echo "========================================"
 echo " All dependencies ready!"
 echo "========================================"
 echo
-echo "To build with Ninja:"
+echo "To build for Windows with Ninja:"
 echo "  cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DUHDR_VIEWER_VULKAN=OFF"
 echo "  cmake --build build"
+echo
+echo "To build for Android:"
+echo "  cd android"
+echo "  gradlew assembleDebug"
+echo

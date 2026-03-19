@@ -1,0 +1,110 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 20,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "vs2022-opengl",
+            "displayName": "Visual Studio 2022 (OpenGL)",
+            "description": "VS 2022 with OpenGL backend only",
+            "generator": "Visual Studio 17 2022",
+            "binaryDir": "${sourceDir}/out/build/vs2022-opengl",
+            "cacheVariables": {
+                "UHDR_VIEWER_OPENGL": "ON",
+                "UHDR_VIEWER_VULKAN": "OFF"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "vs2022-vulkan",
+            "displayName": "Visual Studio 2022 (Vulkan)",
+            "description": "VS 2022 with Vulkan backend only",
+            "generator": "Visual Studio 17 2022",
+            "binaryDir": "${sourceDir}/out/build/vs2022-vulkan",
+            "cacheVariables": {
+                "UHDR_VIEWER_OPENGL": "OFF",
+                "UHDR_VIEWER_VULKAN": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "vs2022-both",
+            "displayName": "Visual Studio 2022 (Both backends)",
+            "description": "VS 2022 with OpenGL + Vulkan",
+            "generator": "Visual Studio 17 2022",
+            "binaryDir": "${sourceDir}/out/build/vs2022-both",
+            "cacheVariables": {
+                "UHDR_VIEWER_OPENGL": "ON",
+                "UHDR_VIEWER_VULKAN": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "ninja-debug",
+            "displayName": "Ninja Debug",
+            "description": "Ninja Debug build (any platform)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/ninja-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "UHDR_VIEWER_VULKAN": "OFF"
+            }
+        },
+        {
+            "name": "ninja-release",
+            "displayName": "Ninja Release",
+            "description": "Ninja Release build (any platform)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/ninja-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "UHDR_VIEWER_VULKAN": "OFF"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "vs2022-opengl-release",
+            "configurePreset": "vs2022-opengl",
+            "configuration": "Release"
+        },
+        {
+            "name": "vs2022-opengl-debug",
+            "configurePreset": "vs2022-opengl",
+            "configuration": "Debug"
+        },
+        {
+            "name": "vs2022-vulkan-release",
+            "configurePreset": "vs2022-vulkan",
+            "configuration": "Release"
+        },
+        {
+            "name": "vs2022-both-release",
+            "configurePreset": "vs2022-both",
+            "configuration": "Release"
+        },
+        {
+            "name": "ninja-debug",
+            "configurePreset": "ninja-debug"
+        },
+        {
+            "name": "ninja-release",
+            "configurePreset": "ninja-release"
+        }
+    ]
+}

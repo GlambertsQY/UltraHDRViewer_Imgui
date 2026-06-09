@@ -16,9 +16,6 @@ struct HDRData {
     int height = 0;
 };
 
-// Open a native file dialog
-std::string openFileDialog(GLFWwindow* owner, const char* filterName, const char* filterSpec);
-
 // Load Ultra HDR image, returns HDRData for re-tone-mapping
 bool loadImageFile(const std::string& filePath, ImageData& outSDR,
                    std::unique_ptr<HDRData>& outHDR,

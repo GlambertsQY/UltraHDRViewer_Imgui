@@ -10,42 +10,8 @@
 #include "stb_image.h"
 #include "exif_parser.h"
 
-#ifdef _WIN32
-#define NOMINMAX
-#include <windows.h>
-#include <commdlg.h>
-#define GLFW_EXPOSE_NATIVE_WIN32
-#include <GLFW/glfw3.h>
-#include <GLFW/glfw3native.h>
-#endif
-
 ImageData::~ImageData() {
     if (pixels) { delete[] pixels; pixels = nullptr; }
-}
-
-// ============================================================
-// File dialog
-// ============================================================
-std::string openFileDialog(GLFWwindow* owner, const char* filterName, const char* filterSpec) {
-#ifdef _WIN32
-    static const char* defaultFilter =
-        "Image Files\0*.jpg;*.jpeg;*.jpe;*.uhdr;*.png;*.bmp\0All Files\0*.*\0";
-    char filename[4096] = {0};
-    OPENFILENAMEA ofn;
-    ZeroMemory(&ofn, sizeof(ofn));
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = owner ? glfwGetWin32Window(owner) : nullptr;
-    ofn.lpstrFile = filename;
-    ofn.nMaxFile = sizeof(filename);
-    ofn.lpstrFilter = filterSpec ? filterSpec : defaultFilter;
-    ofn.nFilterIndex = 1;
-    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
-    if (GetOpenFileNameA(&ofn)) return std::string(filename);
-    return "";
-#else
-    (void)owner; (void)filterName; (void)filterSpec;
-    return "";
-#endif
 }
 
 // ============================================================

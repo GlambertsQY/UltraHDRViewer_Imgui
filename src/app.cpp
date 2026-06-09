@@ -12,6 +12,7 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <fstream>
 
 Application* Application::s_instance = nullptr;
 
@@ -368,24 +369,65 @@ void Application::renderAboutDialog() {
 // File operations
 // ============================================================
 void Application::openImageFile() {
-#ifdef _WIN32
-    static const char* filter =
-        "Ultra HDR & Image Files\0*.jpg;*.jpeg;*.jpe;*.uhdr;*.png;*.bmp\0"
-        "All Files\0*.*\0";
-    std::string path = openFileDialog(m_window, nullptr, filter);
-#else
-    std::string path = openFileDialog(m_window, nullptr, nullptr);
-#endif
+    std::string path = openImageDialog(m_window);
     if (!path.empty()) loadImage(path);
 }
 
 void Application::saveImageFile() {
     if (!m_currentImage) return;
-    // Simple save dialog - reuse openFileDialog logic or just save
-    saveImageToFile(*m_currentImage, m_currentImage->filePath + ".sdr.raw");
+
+    std::string path = openSaveDialog(m_window);
+    if (path.empty()) return;  // user cancelled
+
+    int w = m_currentImage->width;
+    int h = m_currentImage->height;
+    int rowSize = ((w * 3 + 3) / 4) * 4;  // BMP rows are 4-byte aligned
+    int imageSize = rowSize * h;
+    int fileSize = 54 + imageSize;
+
+    // BMP File Header (14 bytes)
+    uint8_t bmpFileHeader[14] = {
+        'B', 'M',           // signature
+        (uint8_t)fileSize, (uint8_t)(fileSize>>8), (uint8_t)(fileSize>>16), (uint8_t)(fileSize>>24),
+        0,0,0,0,            // reserved
+        54,0,0,0            // data offset
+    };
+
+    // BMP DIB Header (40 bytes)
+    uint8_t bmpDIB[40] = {};
+    bmpDIB[0]=40; bmpDIB[4]=w&0xFF; bmpDIB[5]=(w>>8)&0xFF; bmpDIB[6]=(w>>16)&0xFF; bmpDIB[7]=(w>>24)&0xFF;
+    bmpDIB[8]=h&0xFF; bmpDIB[9]=(h>>8)&0xFF; bmpDIB[10]=(h>>16)&0xFF; bmpDIB[11]=(h>>24)&0xFF;
+    bmpDIB[12]=1; /*planes*/ bmpDIB[14]=24; /*bpp*/
+    bmpDIB[20]=imageSize&0xFF; bmpDIB[21]=(imageSize>>8)&0xFF; bmpDIB[22]=(imageSize>>16)&0xFF; bmpDIB[23]=(imageSize>>24)&0xFF;
+
+    std::ofstream f(path, std::ios::binary);
+    if (!f.is_open()) { fprintf(stderr, "Cannot save: %s\n", path.c_str()); return; }
+    f.write((const char*)bmpFileHeader, 14);
+    f.write((const char*)bmpDIB, 40);
+
+    // Write pixel rows bottom-up (BMP convention), convert RGBA->BGR
+    std::vector<uint8_t> row(rowSize, 0);
+    uint8_t* src = m_currentImage->pixels;
+    for (int y = h-1; y >= 0; y--) {
+        uint8_t* srcRow = src + (size_t)y * w * 4;
+        for (int x = 0; x < w; x++) {
+            row[x*3+0] = srcRow[x*4+2];  // B ← R
+            row[x*3+1] = srcRow[x*4+1];  // G ← G
+            row[x*3+2] = srcRow[x*4+0];  // R ← B
+        }
+        f.write((const char*)row.data(), rowSize);
+    }
+    f.close();
+    fprintf(stdout, "Saved BMP: %s (%dx%d)\n", path.c_str(), w, h);
 }
 
 void Application::loadImage(const std::string& path) {
+    // Skip if same file already loaded
+    if (!path.empty() && m_currentImage && path == m_currentImage->filePath) {
+        fprintf(stdout, "Same file, skipping reload: %s\n", path.c_str());
+        return;
+    }
+
     if (m_texture && m_renderer) {
         m_renderer->destroyTexture(m_texture);
         m_texture = nullptr;

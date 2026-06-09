@@ -30,6 +30,16 @@ bool Application::init(const AppConfig& config) {
     }
     if (!m_renderer) { glfwTerminate(); return false; }
 
+    // Set GLFW hints BEFORE window creation (must be here, not in renderer)
+    if (config.backend == "opengl") {
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+#if defined(__APPLE__)
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+    }
+
     m_window = glfwCreateWindow(config.windowWidth, config.windowHeight,
                                  "Ultra HDR Viewer", nullptr, nullptr);
     if (!m_window) { glfwTerminate(); return false; }

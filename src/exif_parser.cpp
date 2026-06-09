@@ -213,33 +213,6 @@ static bool parseIFD(const uint8_t* base, uint32_t offset, uint32_t maxSize, boo
     return true;
 }
 
-static void parseGPSStrings(const uint8_t* base, uint32_t ifdOff, uint32_t maxSize, bool be, ExifData& out) {
-    if (ifdOff + 2 > maxSize) return;
-    uint16_t num = readU16(base + ifdOff, be);
-    uint32_t pos = ifdOff + 2;
-    if (pos + num * 12 > maxSize) return;
-    for (uint16_t i = 0; i < num; i++) {
-        const uint8_t* entry = base + pos + i * 12;
-        uint16_t tag = readU16(entry + 0, be);
-        uint16_t type = readU16(entry + 2, be);
-        uint32_t count = readU32(entry + 4, be);
-        uint32_t off = readU32(entry + 8, be);
-        if (tag == TAG_GPS_LAT_REF && type == TIFF_ASCII && count > 0) {
-            std::string ref((const char*)(base + ((count > 4) ? off : 0)), (count > 4 ? count : 4));
-            ref = ref.empty() ? "" : ref.substr(0, 1);
-            if (ref == "S" || ref == "s") out.gpsLatitude = -fabs(out.gpsLatitude);
-        }
-        if (tag == TAG_GPS_LONG_REF && type == TIFF_ASCII && count > 0) {
-            std::string ref((const char*)(base + ((count > 4) ? off : 0)), (count > 4 ? count : 4));
-            ref = ref.empty() ? "" : ref.substr(0, 1);
-            if (ref == "W" || ref == "w") out.gpsLongitude = -fabs(out.gpsLongitude);
-        }
-        if (tag == TAG_GPS_ALT_REF) {
-            uint8_t ref = (type == TIFF_BYTE) ? ((count == 1) ? (off >> 24) : 0) : 0;
-            if (ref != 0) out.gpsAltitude = -fabs(out.gpsAltitude);
-        }
-    }
-}
 
 ExifData parseExif(const uint8_t* data, size_t size) {
     ExifData out;

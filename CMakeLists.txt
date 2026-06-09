@@ -50,7 +50,26 @@ endif()
 set(UHDR_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(UHDR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(UHDR_BUILD_DEPS ON CACHE BOOL "" FORCE)
+# CMake 4.x compat: libultrahdr's turbojpeg dep uses old cmake_minimum_required
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
 add_subdirectory(${UHDR_DIR} libultrahdr)
+
+# -------------------------------------------------------------------
+# Google Test (FetchContent)
+# -------------------------------------------------------------------
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG        v1.14.0
+)
+# Prevent gtest from building its own tests/examples
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
 
 # -------------------------------------------------------------------
 # ImGui source files
@@ -137,6 +156,11 @@ endif()
 if(UHDR_VIEWER_VULKAN)
     target_compile_definitions(${PROJECT_NAME} PRIVATE UHDR_VIEWER_VULKAN_ENABLED)
 endif()
+
+# -------------------------------------------------------------------
+# Tests
+# -------------------------------------------------------------------
+add_subdirectory(tests)
 
 # -------------------------------------------------------------------
 # Platform-specific settings

@@ -124,50 +124,6 @@ void Application::renderUI() {
     UIPanels::renderAboutDialog(m_showAbout);
 }
 
-void Application::renderControlPanel() {
-    ImGui::SetNextWindowPos(ImVec2(10, 35), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(Config::PANEL_CONTROLS_WIDTH, 0), ImGuiCond_FirstUseEver);
-
-    if (!ImGui::Begin("Controls", nullptr, ImGuiWindowFlags_NoCollapse)) { ImGui::End(); return; }
-
-    bool hasHDR = (m_hdrData != nullptr);
-    if (!hasHDR) ImGui::BeginDisabled();
-
-    ImGui::Text("Tone Mapping (HDR)");
-    ImGui::Separator();
-
-    const char* toneNames[] = {"Reinhard", "ACES Filmic", "Uncharted 2"};
-    if (ImGui::Combo("Mode", &m_toneMappingMode, toneNames, IM_ARRAYSIZE(toneNames)))
-        m_toneMapDirty = true;
-
-    if (ImGui::SliderFloat("Exposure", &m_exposure, Config::EXPOSURE_MIN, Config::EXPOSURE_MAX, "%.2f", ImGuiSliderFlags_Logarithmic))
-        m_toneMapDirty = true;
-
-    if (ImGui::SliderFloat("Gamma", &m_gamma, Config::GAMMA_MIN, Config::GAMMA_MAX, "%.2f"))
-        m_toneMapDirty = true;
-
-    if (ImGui::Button("Reset##tonemap")) {
-        m_exposure = Config::DEFAULT_EXPOSURE; m_gamma = Config::DEFAULT_GAMMA; m_toneMappingMode = 0;
-        m_toneMapDirty = true;
-    }
-
-    if (!hasHDR) ImGui::EndDisabled();
-
-    ImGui::Spacing();
-    ImGui::Text("View");
-    ImGui::Separator();
-
-    if (ImGui::Checkbox("Fit to Window", &m_fitToWindow)) {
-        if (m_fitToWindow) fitToWindow();
-    }
-    ImGui::SliderFloat("Zoom", &m_zoom, Config::ZOOM_MIN, Config::ZOOM_MAX, "%.2fx", ImGuiSliderFlags_Logarithmic);
-    ImGui::DragFloat("Pan X", &m_offsetX, 1.0f);
-    ImGui::DragFloat("Pan Y", &m_offsetY, 1.0f);
-    if (ImGui::Button("Reset View")) resetView();
-
-    ImGui::End();
-}
-
 void Application::renderImagePanel() {
     ImGuiViewport* vp = ImGui::GetMainViewport();
     float panelW = Config::PANEL_IMAGE_MARGIN;
@@ -264,85 +220,6 @@ void Application::renderImagePanel() {
         ImGui::TextDisabled("or File > Open (Ctrl+O)");
     }
     ImGui::End();
-}
-
-void Application::renderInfoPanel() {
-    if (!m_showInfo || !m_currentImage) return;
-    ImGui::SetNextWindowPos(ImVec2(m_displayWidth - Config::PANEL_INFO_WIDTH, 40), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Image Info", &m_showInfo)) {
-        ImGui::Text("File: %s", m_currentImage->filePath.c_str());
-        ImGui::Text("Size: %dx%d", m_currentImage->width, m_currentImage->height);
-        ImGui::Text("Type: %s", m_hdrData ? "Ultra HDR" : "SDR");
-        ImGui::Text("Zoom: %.1f%%", m_zoom * 100.0f);
-        ImGui::Text("Memory: %.2f MB", m_currentImage->dataSize() / (1024.0f * 1024.0f));
-        if (m_hdrData) {
-            ImGui::Text("Exposure: %.2f", m_exposure);
-            ImGui::Text("Gamma: %.2f", m_gamma);
-        }
-
-        if (m_exifData.valid) {
-            ImGui::Separator();
-            ImGui::Text("Camera");
-            if (!m_exifData.make.empty())
-                ImGui::Text("Make: %s", m_exifData.make.c_str());
-            if (!m_exifData.model.empty())
-                ImGui::Text("Model: %s", m_exifData.model.c_str());
-            if (!m_exifData.software.empty())
-                ImGui::Text("Software: %s", m_exifData.software.c_str());
-            if (!m_exifData.dateTime.empty())
-                ImGui::Text("DateTime: %s", m_exifData.dateTime.c_str());
-
-            ImGui::Separator();
-            ImGui::Text("Exposure");
-            ImGui::Text("Shutter: %s", m_exifData.exposureStr().c_str());
-            ImGui::Text("Aperture: %s", m_exifData.apertureStr().c_str());
-            if (m_exifData.isoSpeed > 0)
-                ImGui::Text("ISO: %u", m_exifData.isoSpeed);
-            ImGui::Text("Focal Length: %s", m_exifData.focalLengthStr().c_str());
-            if (m_exifData.flash != 0xFFFF)
-                ImGui::Text("Flash: %s", (m_exifData.flash & 1) ? "On" : "Off");
-
-            ImGui::Separator();
-            ImGui::Text("Image");
-            ImGui::Text("Orientation: %s", m_exifData.orientationStr().c_str());
-            if (m_exifData.pixelX > 0 && m_exifData.pixelY > 0)
-                ImGui::Text("EXIF Size: %ux%u", m_exifData.pixelX, m_exifData.pixelY);
-
-            if (!m_exifData.lensMake.empty())
-                ImGui::Text("Lens: %s", m_exifData.lensMake.c_str());
-            if (!m_exifData.lensModel.empty())
-                ImGui::Text("Lens Model: %s", m_exifData.lensModel.c_str());
-
-            if (m_exifData.hasGPS) {
-                ImGui::Separator();
-                ImGui::Text("GPS");
-                ImGui::Text("Lat: %.6f", m_exifData.gpsLatitude);
-                ImGui::Text("Lon: %.6f", m_exifData.gpsLongitude);
-                ImGui::Text("Alt: %.1f m", m_exifData.gpsAltitude);
-            }
-
-            if (m_exifData.isUltraHDR) {
-                ImGui::Separator();
-                ImGui::Text("Ultra HDR");
-                ImGui::Text("Color Transfer: %s", m_exifData.colorTransfer.c_str());
-                ImGui::Text("HDR Headroom: %d EV", m_exifData.hdrHeadroom);
-            }
-        }
-    }
-    ImGui::End();
-}
-
-void Application::renderAboutDialog() {
-    if (!m_showAbout) return;
-    ImGui::OpenPopup("About##AboutDialog");
-    if (ImGui::BeginPopupModal("About##AboutDialog", &m_showAbout, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("Ultra HDR Viewer");
-        ImGui::Text("Dear ImGui + GLFW + libultrahdr");
-        ImGui::Separator();
-        ImGui::Text("libultrahdr %s", UHDR_LIB_VERSION_STR);
-        if (ImGui::Button("Close")) m_showAbout = false;
-        ImGui::EndPopup();
-    }
 }
 
 // ============================================================

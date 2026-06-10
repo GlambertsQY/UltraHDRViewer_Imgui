@@ -12,7 +12,7 @@
 #endif
 
 #include <GL/gl.h>
-#include <cstdio>
+#include "log.h"
 
 #ifndef GL_CLAMP_TO_EDGE
 #define GL_CLAMP_TO_EDGE 0x812F
@@ -92,7 +92,7 @@ void* OpenGLRenderer::createTexture(const ImageData& image) {
     GLint maxSize;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
     if (image.width > maxSize || image.height > maxSize) {
-        fprintf(stderr, "[ERROR] Image %dx%d exceeds GPU texture limit %d\n", image.width, image.height, maxSize);
+        LOG_ERROR("Image %dx%d exceeds GPU texture limit %d", image.width, image.height, maxSize);
         return nullptr;
     }
     return (void*)(intptr_t)uploadTexture(image);

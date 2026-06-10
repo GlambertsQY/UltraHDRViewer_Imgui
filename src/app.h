@@ -57,9 +57,6 @@ private:
     void renderUI();
     void renderMenuBar();
     void renderImagePanel();
-    void renderControlPanel();
-    void renderInfoPanel();
-    void renderAboutDialog();
 
     void openImageFile();
     void saveImageFile();

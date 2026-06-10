@@ -2,10 +2,11 @@
 
 > C++17 Ultra HDR image viewer: Dear ImGui + GLFW + libultrahdr
 > Target: Windows Desktop, VS2022 + CMake
+> Skill generated from codebase analysis - reflects post-refactor state / 基于代码分析生成 - 反映重构后状态
 
 ---
 
-## TL;DR Build
+## TL;DR Build / 快速构建
 
 ```bat
 :: 1. Clone deps (one-time)
@@ -24,16 +25,20 @@ cmake --build out/build/vs2022-vulkan --config Release
 out\build\vs2022-vulkan\bin\Release\UltraHDRViewer.exe --vulkan
 ```
 
-## Project Structure
+## Project Structure / 项目结构
 
 ```
 src/
 ├── main.cpp              # Entry point, CLI args, DPI awareness
-├── app.h / app.cpp       # Application: init sequence, run loop, UI rendering
+├── app.h / app.cpp       # App lifecycle, image panel, UI orchestration
+├── config.h              # Window/layout/slider constants (namespace Config)
+├── log.h                 # LOG_ERROR/LOG_INFO macros (no external deps)
 ├── renderer.h            # Renderer interface + ImageData struct
 ├── renderer_gl.h / .cpp  # OpenGL backend (#ifdef UHDR_VIEWER_OPENGL_ENABLED)
 ├── renderer_vk.h / .cpp  # Vulkan backend (#ifdef UHDR_VIEWER_VULKAN_ENABLED)
-├── image_loader.h / .cpp # Ultra HDR decoding, tone mapping, file dialog
+├── image_loader.h / .cpp # Ultra HDR decoding, backward-compat includes tonemap.h
+├── tonemap.h / .cpp      # Tone mapping: toneMapImage()/applyToneMap() (3 modes)
+├── ui_panels.h / .cpp    # UI panels: MenuBar/ControlPanel/InfoPanel/AboutDialog
 ├── exif_parser.h / .cpp  # EXIF metadata parser (JPEG APP1 segments)
 ├── file_dialog.h / .cpp  # Win32 native file open/save dialogs
 └── stb_image_impl.cpp    # stb_image implementation unit
@@ -47,9 +52,27 @@ deps/                     # After clone_deps.bat
 └── stb_image.h           # stb_image single-header
 ```
 
-## CRITICAL: Construction Order Invariant
+## New Modules / 新增模块（重构提取）
 
-When modifying `Application::init`, `Renderer::init`, **NEVER change this sequence**:
+| File | Responsibility / 职责 | Extracted From / 提取自 |
+|------|------------------------|--------------------------|
+| `config.h` | `namespace Config` - window/layout/slider constants | Magic numbers in app.cpp |
+| `log.h` | `LOG_ERROR`/`LOG_INFO` macros - minimal, no deps | Scattered `fprintf` |
+| `tonemap.cpp/h` | `toneMapImage()` / `applyToneMap()` - 3 tone mapping modes | image_loader.cpp |
+| `ui_panels.cpp/h` | `renderMenuBar/ControlPanel/InfoPanel/AboutDialog` | app.cpp |
+
+**Note / 注意**: `renderImagePanel()` (image viewport + zoom/pan/checkerboard) remains in `app.cpp`
+because it is tightly coupled to app state (`m_zoom`, `m_offsetX`, `m_texture`, `m_isDragging`).
+Do NOT extract it without understanding these dependencies.
+
+**Note / 注意**: In `config.h`, `PANEL_IMAGE_MARGIN = 290.0f` depends on `PANEL_CONTROLS_WIDTH = 280.0f`
+(= 280 + 10 gap). Adjust margin when changing panel width.
+
+**Note / 注意**: `image_loader.h` includes `#include "tonemap.h"` for backward compatibility.
+
+## Construction Order / 初始化顺序 (Best Practice)
+
+When modifying `Application::init`, follow this tested sequence:
 
 ```
 1. glfwInit()
@@ -62,13 +85,12 @@ When modifying `Application::init`, `Renderer::init`, **NEVER change this sequen
 8. glfwGetFramebufferSize(...)
 ```
 
-**Why this matters**: GLFW window hints are consumed at `glfwCreateWindow` time.
-Setting them afterwards is a silent no-op. The current code sets GL version hints
-inside `OpenGLRenderer::init` (at line 49-58 of renderer_gl.cpp), which is called
-AFTER `glfwCreateWindow` in `app.cpp:33` — **this is a bug**. The window uses the
-driver's default GL version, not the intended 3.0.
+**Note**: A previous bug placed GLFW hints inside the renderer after `glfwCreateWindow`
+> This caused the window to use driver-default GL version instead of 3.0.
+> **This is now fixed** - hints are set in `app.cpp` before `glfwCreateWindow`.
+The order remains important as a best practice.
 
-## Build Matrix
+## Build Matrix / 构建矩阵
 
 | Preset | Backend | Generator | Configs |
 |--------|---------|-----------|---------|
@@ -80,79 +102,88 @@ driver's default GL version, not the intended 3.0.
 
 **After every code change wave, verify at minimum:**
 ```
+
 cmake --preset vs2022-opengl && cmake --build out/build/vs2022-opengl --config Debug
 ```
 Must compile with **0 errors, 0 new warnings** vs baseline.
 
-## Code Conventions
+## Code Conventions / 代码规范
 
-### Platform Guards
+### Platform Guards / 平台守卫
 ```cpp
 #ifdef UHDR_VIEWER_OPENGL_ENABLED   // OpenGL-specific code
 #ifdef UHDR_VIEWER_VULKAN_ENABLED   // Vulkan-specific code
 #ifdef _WIN32                        // Win32 API (file dialogs, DPI)
 ```
 
-### GLFW Lifecycle
+### GLFW Lifecycle / GLFW 生命周期
 - `glfwInit()` and `glfwTerminate()` can each be called only **once per process**
 - Test harnesses MUST NOT call them in individual test cases
 - Use a global test fixture or mock GLFW entirely
 
-### Texture Handles
-- OpenGL: `(void*)(intptr_t)glTextureID` — cast via intptr_t, NOT direct
+### Texture Handles / 纹理句柄
+- OpenGL: `(void*)(intptr_t)glTextureID` - cast via intptr_t, NOT direct
 - Vulkan: pointer to heap-allocated `VulkanTexture` struct
 - **MUST NOT** change `void* m_texture` to a typed pointer without tagged union
 
-### Error Reporting
-- Currently: `fprintf(stderr, ...)` scattered throughout
-- Target: `LOG_ERROR(fmt, ...)` macro — no external dependencies (no spdlog/fmt)
+### Error Reporting / 错误报告
+- `LOG_ERROR(fmt, ...)` / `LOG_INFO(fmt, ...)` macros defined in `src/log.h`
+- Uses `fprintf` internally - no external dependencies (no spdlog/fmt)
+- All error and info output goes through these macros
 
-### Memory Management
-- `ImageData::pixels` is raw `new[]`/`delete[]` — **target**: `std::vector<uint8_t>`
-- Vulkan handles (`VkDevice`, `VkInstance`, etc.) stay raw — they have their own lifecycle
-- GLFWwindow* stays raw — GLFW owns it
+### Memory Management / 内存管理
+- `ImageData::pixels` (desktop, `src/renderer.h`): `std::vector<uint8_t>` - no manual allocation
+- **Platform divergence**: Android (`android/.../hdr_types.h`) still uses `uint8_t* pixels` with `new[]`/`delete[]`
+  - the two platforms have independent copies; changing one does NOT affect the other
+- Vulkan handles (`VkDevice`, `VkInstance`, etc.) stay raw - they have their own lifecycle
+- GLFWwindow* stays raw - GLFW owns it
 
-## Testing
+## Testing / 测试
 
-### Framework: Google Test
-- Acquired via CMake `FetchContent` or cloned to `deps/googletest/`
-- Tests live in `tests/` directory
-- Separate CMake target: `UltraHDRViewerTests`
+### Framework: Google Test (v1.14.0)
+- Acquired via CMake `FetchContent` (`tests/CMakeLists.txt`)
+- Test target: `UltraHDRViewerTests`
 
-### Test Categories
-| Category | What | GLFW Needed |
-|----------|------|-------------|
-| Unit (logic) | EXIF parser, tone mapping math, constants | No |
-| Unit (image) | Image loading/decoding, pixel correctness | No |
-| Integration | Renderer texture upload, UI layout | Yes (init once) |
-
-### Characterization Tests (Baseline)
-Before any refactoring, establish:
-1. Load `MVIMG_20251123_200209.jpg` → save raw pixels as `ref.raw`
-2. Apply tone mapping with defaults → save as `ref_tonemapped.raw`
-3. Parse EXIF → serialize known fields to JSON for comparison
-
-### Pixel Diff Verification
-```powershell
-# After refactoring, verify identical output:
-Compare-Object (Get-Content ref.raw -Encoding Byte) (Get-Content test.raw -Encoding Byte)
-# Expected: no output (no differences)
+### Build & Run Tests
+```bat
+cmake --preset vs2022-opengl
+cmake --build out/build/vs2022-opengl --config Debug
+ctest --test-dir out/build/vs2022-opengl --output-on-failure
 ```
 
-## Common Pitfalls
+### Test Files
+| File | Coverage |
+|------|----------|
+| `tests/tonemap_test.cpp` | Tone mapping: output bounds, Reinhard identity, exposure zero, mode differences, gamma |
+| `tests/exif_parser_test.cpp` | EXIF parsing: camera info, orientation range, image dimensions, GPS validation |
+| `tests/image_load_test.cpp` | Image loading: ImageData + HDRData output, baseline save to `tests/baseline/ref_pixels.raw` |
 
-1. **Don't set GLFW hints in renderer init** — they take effect at window creation time
-2. **Don't call glfwTerminate in tests** — once per process only
-3. **Don't change ImageData struct layout** — Android has independent copies that must stay compatible
-4. **New .cpp files must be added to APP_SOURCES in CMakeLists.txt**
-5. **Vulkan backend uses `#ifdef UHDR_VIEWER_VULKAN_ENABLED` — preserve these guards**
-6. **`vkDeviceWaitIdle()` in updateTexture** — Vulkan destroys/recreates GPU resources; OpenGL uses `glTexSubImage2D`
-7. **DPI**: `SetProcessDPIAware()` is called, NOT per-monitor V2 — blurry on mixed-DPI multi-monitor
+### Baseline / Pixel Diff Verification
+Baseline file: `tests/baseline/ref_pixels.raw` (generated by `image_load_test` from `MVIMG_20251123_200209.jpg`)
 
-## Manual Verification Checklist (per wave)
+```powershell
+Compare-Object (Get-Content tests/baseline/ref_pixels.raw -Encoding Byte) (Get-Content test.raw -Encoding Byte)
+```
+
+## Common Pitfalls / 常见陷阱
+
+1. **Don't call glfwTerminate in tests** - once per process only; use global test fixture or mock
+2. **ImageData struct layout diverged by platform** - Desktop (`src/renderer.h`) uses `std::vector<uint8_t>`; Android (`android/.../hdr_types.h`) uses `uint8_t* pixels`. Changes on one platform DO NOT propagate to the other.
+3. **New .cpp files must be added to APP_SOURCES in CMakeLists.txt**
+4. **Vulkan backend uses `#ifdef UHDR_VIEWER_VULKAN_ENABLED`** - preserve these guards
+5. **`vkDeviceWaitIdle()` in updateTexture** - Vulkan destroys/recreates GPU resources; OpenGL uses `glTexSubImage2D`
+6. **DPI**: `SetProcessDPIAware()` is called, NOT per-monitor V2 - blurry on mixed-DPI multi-monitor
+7. **Tone mapping algorithms are duplicated** - `src/tonemap.cpp` (desktop) and `android/.../image_loader_android.cpp` (Android) contain identical Reinhard/ACES/Uncharted2 implementations. Any algorithm change MUST be applied to both files.
+
+## Manual Verification Checklist / 手动验证清单 (per wave)
 
 After each wave, run:
 ```
+
+
+
+
+
 [ ] Build: cmake --preset vs2022-opengl && cmake --build ... --config Debug (0 errors)
 [ ] Launch: out\build\vs2022-opengl\bin\Debug\UltraHDRViewer.exe
 [ ] Open: File > Open > MVIMG_20251123_200209.jpg
@@ -165,4 +196,5 @@ After each wave, run:
 [ ] Gamma: slider → contrast changes
 [ ] Reset: press R → view resets to fit
 [ ] Exit: Esc → clean exit (no crash)
+[ ] Tests: ctest --test-dir out/build/vs2022-opengl --output-on-failure (all pass)
 ```

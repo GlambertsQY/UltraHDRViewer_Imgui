@@ -28,13 +28,8 @@ bool loadRegularImage(const std::string& filePath, ImageData& outSDR,
 // Check if file is JPEG (possibly Ultra HDR)
 bool isUltraHDRFile(const std::string& filePath);
 
-// Tone map: HDR float RGBA -> SDR uint8 RGBA
-void toneMapImage(const float* hdrPixels, uint8_t* sdrPixels, int width, int height,
-                  float exposure, float gamma, int toneMappingMode);
-
-// Apply tone mapping from HDRData -> ImageData
-void applyToneMap(const HDRData& hdr, ImageData& sdr,
-                  float exposure, float gamma, int toneMappingMode);
+// Tone mapping functions (delegated to tonemap.h for backward compatibility)
+#include "tonemap.h"
 
 // Save image to file
 bool saveImageToFile(const ImageData& image, const std::string& outputPath);

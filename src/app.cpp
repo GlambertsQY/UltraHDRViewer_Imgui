@@ -1,4 +1,5 @@
 #include "app.h"
+#include "ui_panels.h"
 #include "image_loader.h"
 #include "file_dialog.h"
 #include "renderer.h"
@@ -99,49 +100,27 @@ void Application::reapplyToneMapping() {
 // UI
 // ============================================================
 void Application::renderUI() {
-    renderMenuBar();
-    renderControlPanel();
+    bool hasHDR = (m_hdrData != nullptr);
+
+    UIPanels::renderMenuBar(m_window, m_currentImage.get(), m_zoom, hasHDR,
+                            m_fitToWindow, m_showInfo, m_showAbout,
+                            [this]() { openImageFile(); },
+                            [this]() { saveImageFile(); },
+                            [this]() { fitToWindow(); },
+                            [this]() { resetView(); });
+    UIPanels::renderControlPanel(hasHDR,
+                                 m_exposure, m_gamma,
+                                 m_toneMappingMode, m_toneMapDirty,
+                                 m_fitToWindow, m_zoom,
+                                 m_offsetX, m_offsetY,
+                                 [this]() { fitToWindow(); },
+                                 [this]() { resetView(); });
     renderImagePanel();
-    renderInfoPanel();
-    renderAboutDialog();
-}
-
-void Application::renderMenuBar() {
-    if (ImGui::BeginMainMenuBar()) {
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("Open...", "Ctrl+O")) openImageFile();
-            if (ImGui::MenuItem("Save SDR As...", "Ctrl+S", false, m_currentImage != nullptr))
-                saveImageFile();
-            ImGui::Separator();
-            if (ImGui::MenuItem("Exit", "Alt+F4")) glfwSetWindowShouldClose(m_window, GLFW_TRUE);
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("View")) {
-            if (ImGui::MenuItem("Fit to Window", "F", &m_fitToWindow)) {
-                if (m_fitToWindow) fitToWindow();
-            }
-            if (ImGui::MenuItem("Reset View", "R")) resetView();
-            ImGui::Separator();
-            ImGui::MenuItem("Show Info", "I", &m_showInfo);
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Help")) {
-            if (ImGui::MenuItem("About")) m_showAbout = true;
-            ImGui::EndMenu();
-        }
-
-        ImGui::SameLine(ImGui::GetWindowWidth() - 320);
-        if (m_currentImage) {
-            const char* type = m_hdrData ? "HDR" : "SDR";
-            ImGui::Text("%dx%d %s | %.0f%% | %s",
-                        m_currentImage->width, m_currentImage->height,
-                        type, m_zoom * 100.0f,
-                        m_currentImage->filePath.c_str());
-        } else {
-            ImGui::TextDisabled("No image loaded");
-        }
-        ImGui::EndMainMenuBar();
-    }
+    UIPanels::renderInfoPanel(m_showInfo, m_exifData,
+                              m_currentImage.get(), hasHDR,
+                              m_zoom, m_exposure, m_gamma,
+                              m_displayWidth);
+    UIPanels::renderAboutDialog(m_showAbout);
 }
 
 void Application::renderControlPanel() {

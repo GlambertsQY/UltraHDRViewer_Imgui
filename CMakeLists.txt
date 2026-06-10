@@ -121,6 +121,8 @@ set(APP_SOURCES
     src/main.cpp
     src/app.cpp
     src/image_loader.cpp
+    src/tonemap.cpp
+    src/ui_panels.cpp
     src/exif_parser.cpp
     src/file_dialog.cpp
     src/stb_image_impl.cpp

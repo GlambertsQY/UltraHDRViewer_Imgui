@@ -3,6 +3,7 @@ file(GLOB TEST_SOURCES *.cpp)
 list(APPEND TEST_SOURCES
     ../src/exif_parser.cpp
     ../src/image_loader.cpp
+    ../src/tonemap.cpp
     ../src/stb_image_impl.cpp
 )
 add_executable(UltraHDRViewerTests ${TEST_SOURCES})

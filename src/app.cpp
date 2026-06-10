@@ -3,6 +3,7 @@
 #include "image_loader.h"
 #include "file_dialog.h"
 #include "renderer.h"
+#include "log.h"
 
 #include "imgui.h"
 #include "ultrahdr_api.h"
@@ -21,7 +22,7 @@ Application::~Application() { shutdown(); }
 
 bool Application::init(const AppConfig& config) {
     s_instance = this;
-    glfwSetErrorCallback([](int e, const char* d) { fprintf(stderr, "GLFW %d: %s\n", e, d); });
+    glfwSetErrorCallback([](int e, const char* d) { LOG_ERROR("GLFW %d: %s", e, d); });
     if (!glfwInit()) return false;
 
     if (config.backend == "vulkan") {
@@ -125,7 +126,7 @@ void Application::renderUI() {
 
 void Application::renderControlPanel() {
     ImGui::SetNextWindowPos(ImVec2(10, 35), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(280, 0), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(Config::PANEL_CONTROLS_WIDTH, 0), ImGuiCond_FirstUseEver);
 
     if (!ImGui::Begin("Controls", nullptr, ImGuiWindowFlags_NoCollapse)) { ImGui::End(); return; }
 
@@ -139,14 +140,14 @@ void Application::renderControlPanel() {
     if (ImGui::Combo("Mode", &m_toneMappingMode, toneNames, IM_ARRAYSIZE(toneNames)))
         m_toneMapDirty = true;
 
-    if (ImGui::SliderFloat("Exposure", &m_exposure, 0.01f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic))
+    if (ImGui::SliderFloat("Exposure", &m_exposure, Config::EXPOSURE_MIN, Config::EXPOSURE_MAX, "%.2f", ImGuiSliderFlags_Logarithmic))
         m_toneMapDirty = true;
 
-    if (ImGui::SliderFloat("Gamma", &m_gamma, 1.0f, 4.0f, "%.2f"))
+    if (ImGui::SliderFloat("Gamma", &m_gamma, Config::GAMMA_MIN, Config::GAMMA_MAX, "%.2f"))
         m_toneMapDirty = true;
 
     if (ImGui::Button("Reset##tonemap")) {
-        m_exposure = 1.0f; m_gamma = 2.2f; m_toneMappingMode = 0;
+        m_exposure = Config::DEFAULT_EXPOSURE; m_gamma = Config::DEFAULT_GAMMA; m_toneMappingMode = 0;
         m_toneMapDirty = true;
     }
 
@@ -159,7 +160,7 @@ void Application::renderControlPanel() {
     if (ImGui::Checkbox("Fit to Window", &m_fitToWindow)) {
         if (m_fitToWindow) fitToWindow();
     }
-    ImGui::SliderFloat("Zoom", &m_zoom, 0.05f, 20.0f, "%.2fx", ImGuiSliderFlags_Logarithmic);
+    ImGui::SliderFloat("Zoom", &m_zoom, Config::ZOOM_MIN, Config::ZOOM_MAX, "%.2fx", ImGuiSliderFlags_Logarithmic);
     ImGui::DragFloat("Pan X", &m_offsetX, 1.0f);
     ImGui::DragFloat("Pan Y", &m_offsetY, 1.0f);
     if (ImGui::Button("Reset View")) resetView();
@@ -169,7 +170,7 @@ void Application::renderControlPanel() {
 
 void Application::renderImagePanel() {
     ImGuiViewport* vp = ImGui::GetMainViewport();
-    float panelW = 290.0f;
+    float panelW = Config::PANEL_IMAGE_MARGIN;
 
     ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + panelW, vp->WorkPos.y));
     ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x - panelW, vp->WorkSize.y));
@@ -215,7 +216,7 @@ void Application::renderImagePanel() {
                 m_fitToWindow = false;
                 float oldZoom = m_zoom;
                 float factor = 1.0f + io.MouseWheel * 0.1f;
-                m_zoom = std::max(0.01f, std::min(m_zoom * factor, 100.0f));
+                m_zoom = std::max(Config::ZOOM_MIN, std::min(m_zoom * factor, 100.0f));
                 float scale = m_zoom / oldZoom;
                 m_offsetX = mouse.x - (mouse.x - m_offsetX) * scale;
                 m_offsetY = mouse.y - (mouse.y - m_offsetY) * scale;
@@ -267,7 +268,7 @@ void Application::renderImagePanel() {
 
 void Application::renderInfoPanel() {
     if (!m_showInfo || !m_currentImage) return;
-    ImGui::SetNextWindowPos(ImVec2(m_displayWidth - 320, 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(m_displayWidth - Config::PANEL_INFO_WIDTH, 40), ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Image Info", &m_showInfo)) {
         ImGui::Text("File: %s", m_currentImage->filePath.c_str());
         ImGui::Text("Size: %dx%d", m_currentImage->width, m_currentImage->height);
@@ -380,7 +381,7 @@ void Application::saveImageFile() {
     bmpDIB[20]=imageSize&0xFF; bmpDIB[21]=(imageSize>>8)&0xFF; bmpDIB[22]=(imageSize>>16)&0xFF; bmpDIB[23]=(imageSize>>24)&0xFF;
 
     std::ofstream f(path, std::ios::binary);
-    if (!f.is_open()) { fprintf(stderr, "Cannot save: %s\n", path.c_str()); return; }
+    if (!f.is_open()) { LOG_ERROR("Cannot save: %s", path.c_str()); return; }
     f.write((const char*)bmpFileHeader, 14);
     f.write((const char*)bmpDIB, 40);
 
@@ -397,13 +398,13 @@ void Application::saveImageFile() {
         f.write((const char*)row.data(), rowSize);
     }
     f.close();
-    fprintf(stdout, "Saved BMP: %s (%dx%d)\n", path.c_str(), w, h);
+    LOG_INFO("Saved BMP: %s (%dx%d)", path.c_str(), w, h);
 }
 
 void Application::loadImage(const std::string& path) {
     // Skip if same file already loaded
     if (!path.empty() && m_currentImage && path == m_currentImage->filePath) {
-        fprintf(stdout, "Same file, skipping reload: %s\n", path.c_str());
+        LOG_INFO("Same file, skipping reload: %s", path.c_str());
         return;
     }
 
@@ -415,7 +416,7 @@ void Application::loadImage(const std::string& path) {
     m_currentImage.reset();
     m_exifData = ExifData{};
 
-    fprintf(stdout, "Loading: %s\n", path.c_str());
+    LOG_INFO("Loading: %s", path.c_str());
 
     auto image = std::make_unique<ImageData>();
     std::unique_ptr<HDRData> hdr;
@@ -428,9 +429,9 @@ void Application::loadImage(const std::string& path) {
             ok = loadRegularImage(path, *image, &exif);
         }
     } catch (const std::exception& e) {
-        fprintf(stderr, "Exception loading image: %s\n", e.what());
+        LOG_ERROR("Exception loading image: %s", e.what());
     } catch (...) {
-        fprintf(stderr, "Unknown exception loading image\n");
+        LOG_ERROR("Unknown exception loading image");
     }
 
     if (ok && !image->pixels.empty() && image->width > 0 && image->height > 0) {
@@ -439,17 +440,17 @@ void Application::loadImage(const std::string& path) {
         m_exifData = exif;
         m_texture = m_renderer->createTexture(*m_currentImage);
         if (!m_texture) {
-            fprintf(stderr, "Failed to create texture\n");
+            LOG_ERROR("Failed to create texture");
             m_currentImage.reset();
             m_hdrData.reset();
             m_exifData = ExifData{};
         } else {
             resetView();
             m_fitToWindow = true;
-            fprintf(stdout, "Display: %dx%d\n", m_currentImage->width, m_currentImage->height);
+            LOG_INFO("Display: %dx%d", m_currentImage->width, m_currentImage->height);
         }
     } else {
-        fprintf(stderr, "Failed to load: %s\n", path.c_str());
+        LOG_ERROR("Failed to load: %s", path.c_str());
     }
 }
 

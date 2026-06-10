@@ -1,4 +1,5 @@
 #include "ui_panels.h"
+#include "config.h"
 #include "renderer.h"
 #include "exif_parser.h"
 #include "ultrahdr_api.h"
@@ -38,7 +39,7 @@ void renderMenuBar(GLFWwindow* window, const ImageData* img, float zoom, bool is
             ImGui::EndMenu();
         }
 
-        ImGui::SameLine(ImGui::GetWindowWidth() - 320);
+        ImGui::SameLine(ImGui::GetWindowWidth() - Config::PANEL_INFO_WIDTH);
         if (img) {
             const char* type = isHDR ? "HDR" : "SDR";
             ImGui::Text("%dx%d %s | %.0f%% | %s",
@@ -61,7 +62,7 @@ void renderControlPanel(bool hasHDR,
                         std::function<void()> onResetView)
 {
     ImGui::SetNextWindowPos(ImVec2(10, 35), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(280, 0), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(Config::PANEL_CONTROLS_WIDTH, 0), ImGuiCond_FirstUseEver);
 
     if (!ImGui::Begin("Controls", nullptr, ImGuiWindowFlags_NoCollapse)) { ImGui::End(); return; }
 
@@ -74,14 +75,14 @@ void renderControlPanel(bool hasHDR,
     if (ImGui::Combo("Mode", &toneMappingMode, toneNames, IM_ARRAYSIZE(toneNames)))
         toneMapDirty = true;
 
-    if (ImGui::SliderFloat("Exposure", &exposure, 0.01f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic))
+    if (ImGui::SliderFloat("Exposure", &exposure, Config::EXPOSURE_MIN, Config::EXPOSURE_MAX, "%.2f", ImGuiSliderFlags_Logarithmic))
         toneMapDirty = true;
 
-    if (ImGui::SliderFloat("Gamma", &gamma, 1.0f, 4.0f, "%.2f"))
+    if (ImGui::SliderFloat("Gamma", &gamma, Config::GAMMA_MIN, Config::GAMMA_MAX, "%.2f"))
         toneMapDirty = true;
 
     if (ImGui::Button("Reset##tonemap")) {
-        exposure = 1.0f; gamma = 2.2f; toneMappingMode = 0;
+        exposure = Config::DEFAULT_EXPOSURE; gamma = Config::DEFAULT_GAMMA; toneMappingMode = 0;
         toneMapDirty = true;
     }
 
@@ -94,7 +95,7 @@ void renderControlPanel(bool hasHDR,
     if (ImGui::Checkbox("Fit to Window", &fitToWindow)) {
         if (fitToWindow) onFitToWindow();
     }
-    ImGui::SliderFloat("Zoom", &zoom, 0.05f, 20.0f, "%.2fx", ImGuiSliderFlags_Logarithmic);
+    ImGui::SliderFloat("Zoom", &zoom, Config::ZOOM_MIN, Config::ZOOM_MAX, "%.2fx", ImGuiSliderFlags_Logarithmic);
     ImGui::DragFloat("Pan X", &offsetX, 1.0f);
     ImGui::DragFloat("Pan Y", &offsetY, 1.0f);
     if (ImGui::Button("Reset View")) onResetView();
@@ -108,7 +109,7 @@ void renderInfoPanel(bool& showInfo, const ExifData& exif,
                      int displayWidth)
 {
     if (!showInfo || !img) return;
-    ImGui::SetNextWindowPos(ImVec2(displayWidth - 320, 40), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(displayWidth - Config::PANEL_INFO_WIDTH, 40), ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Image Info", &showInfo)) {
         ImGui::Text("File: %s", img->filePath.c_str());
         ImGui::Text("Size: %dx%d", img->width, img->height);

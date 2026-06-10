@@ -1,7 +1,8 @@
 #pragma once
 
 #include "renderer.h"
-#include <GLFW/glfw3.h>
+
+struct GLFWwindow;
 
 #ifdef UHDR_VIEWER_VULKAN_ENABLED
 
@@ -37,6 +38,7 @@ private:
 
     VkInstance m_instance = VK_NULL_HANDLE;
     VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
+    VkPhysicalDeviceProperties m_physicalDeviceProperties = {};
     VkDevice m_device = VK_NULL_HANDLE;
     VkQueue m_queue = VK_NULL_HANDLE;
     uint32_t m_queueFamily = (uint32_t)-1;

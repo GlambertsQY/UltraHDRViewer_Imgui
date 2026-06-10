@@ -79,6 +79,7 @@ void OpenGLRenderer::render() {
     ImGui::Render();
     int displayW, displayH;
     glfwGetFramebufferSize(m_window, &displayW, &displayH);
+    if (displayW <= 0 || displayH <= 0) return; // window minimized
     glViewport(0, 0, displayW, displayH);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -88,6 +89,12 @@ void OpenGLRenderer::render() {
 
 void* OpenGLRenderer::createTexture(const ImageData& image) {
     if (image.pixels.empty() || image.width <= 0 || image.height <= 0) return nullptr;
+    GLint maxSize;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
+    if (image.width > maxSize || image.height > maxSize) {
+        fprintf(stderr, "[ERROR] Image %dx%d exceeds GPU texture limit %d\n", image.width, image.height, maxSize);
+        return nullptr;
+    }
     return (void*)(intptr_t)uploadTexture(image);
 }
 

@@ -1,4 +1,6 @@
 #include "app.h"
+#include "config.h"
+#include "log.h"
 #include <cstdio>
 #include <cstring>
 
@@ -14,8 +16,8 @@ int main(int argc, char* argv[]) {
 
     AppConfig config;
     config.backend = "opengl";
-    config.windowWidth = 1440;
-    config.windowHeight = 900;
+    config.windowWidth = Config::WINDOW_DEFAULT_WIDTH;
+    config.windowHeight = Config::WINDOW_DEFAULT_HEIGHT;
 
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
@@ -42,7 +44,7 @@ int main(int argc, char* argv[]) {
 
     Application app;
     if (!app.init(config)) {
-        fprintf(stderr, "Failed to initialize application\n");
+        LOG_ERROR("Failed to initialize application");
         return 1;
     }
 

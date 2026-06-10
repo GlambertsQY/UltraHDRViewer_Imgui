@@ -2,6 +2,7 @@
 
 #include <string>
 #include <memory>
+#include "config.h"
 #include "renderer.h"
 #include "image_loader.h"
 #include "exif_parser.h"
@@ -10,8 +11,8 @@ struct GLFWwindow;
 
 struct AppConfig {
     std::string backend = "opengl";
-    int windowWidth = 1440;
-    int windowHeight = 900;
+    int windowWidth = Config::WINDOW_DEFAULT_WIDTH;
+    int windowHeight = Config::WINDOW_DEFAULT_HEIGHT;
 };
 
 class Application {

@@ -1,4 +1,5 @@
 #include "renderer_vk.h"
+#include "log.h"
 
 #ifdef UHDR_VIEWER_VULKAN_ENABLED
 
@@ -29,7 +30,7 @@ VulkanRenderer::~VulkanRenderer() { shutdown(); }
 
 void VulkanRenderer::checkVkResult(VkResult err) {
     if (err == VK_SUCCESS) return;
-    fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
+    LOG_ERROR("[vulkan] Error: VkResult = %d", err);
     if (err < 0) abort();
 }
 
@@ -38,7 +39,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugReportCallback(
     VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType,
     uint64_t object, size_t location, int32_t messageCode,
     const char* pLayerPrefix, const char* pMessage, void* pUserData) {
-    fprintf(stderr, "[vulkan] %s\n", pMessage);
+    LOG_ERROR("[vulkan] %s", pMessage);
     return VK_FALSE;
 }
 #endif
@@ -46,7 +47,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugReportCallback(
 bool VulkanRenderer::init(GLFWwindow* window) {
     m_window = window;
     if (!glfwVulkanSupported()) {
-        fprintf(stderr, "GLFW: Vulkan Not Supported\n");
+        LOG_ERROR("GLFW: Vulkan Not Supported");
         return false;
     }
     if (!createInstance()) return false;
@@ -145,7 +146,7 @@ bool VulkanRenderer::createSurface(GLFWwindow* window) {
 bool VulkanRenderer::selectPhysicalDevice() {
     uint32_t count = 0;
     vkEnumeratePhysicalDevices(m_instance, &count, nullptr);
-    if (count == 0) { fprintf(stderr, "No Vulkan devices found\n"); return false; }
+    if (count == 0) { LOG_ERROR("No Vulkan devices found"); return false; }
 
     std::vector<VkPhysicalDevice> devices(count);
     vkEnumeratePhysicalDevices(m_instance, &count, devices.data());
@@ -163,7 +164,8 @@ bool VulkanRenderer::selectPhysicalDevice() {
             if (presentSupport) { m_queueFamily = i; break; }
         }
     }
-    if (m_queueFamily == (uint32_t)-1) { fprintf(stderr, "No queue family\n"); return false; }
+    if (m_queueFamily == (uint32_t)-1) { LOG_ERROR("No queue family"); return false; }
+    vkGetPhysicalDeviceProperties(m_physicalDevice, &m_physicalDeviceProperties);
     return true;
 }
 
@@ -644,6 +646,12 @@ void VulkanRenderer::uploadTextureData(VulkanTexture& tex, const ImageData& imag
 
 void* VulkanRenderer::createTexture(const ImageData& image) {
     if (image.pixels.empty() || image.width <= 0 || image.height <= 0) return nullptr;
+    if ((uint32_t)image.width > m_physicalDeviceProperties.limits.maxImageDimension2D ||
+        (uint32_t)image.height > m_physicalDeviceProperties.limits.maxImageDimension2D) {
+        LOG_ERROR("Image %dx%d exceeds GPU texture limit %u", image.width, image.height,
+                  m_physicalDeviceProperties.limits.maxImageDimension2D);
+        return nullptr;
+    }
     VulkanTexture* tex = new VulkanTexture();
     uploadTextureData(*tex, image);
     return tex;

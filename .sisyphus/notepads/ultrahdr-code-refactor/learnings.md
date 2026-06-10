@@ -71,6 +71,11 @@
 - **Android**: NOT touched — Android has independent ImageData in android/app/src/main/cpp/ (hdr_types.h, image_data.h, image_loader_android.cpp)
 - **Verification**: `grep "new uint8_t\[" src/` → 0 matches, `grep "delete\[\]" src/` → 0 matches, build 0 errors, 9/9 tests pass
 
+## Android stb_image split (2026-06-10)
+- Extracted `STB_IMAGE_IMPLEMENTATION` into `android/app/src/main/cpp/stb_image_impl.cpp` and left `image_loader_android.cpp` with a plain `#include "stb_image.h"`.
+- Added the new TU to Android `APP_SOURCES` so stb_image gets exactly one implementation unit.
+- Verification blockers in this environment: Android Gradle wrapper fails to launch, and LSP lacks the Android/deps include context (`jni.h`, `stb_image.h`).
+
 ## Task D.2 - Fuse Ultra HDR pixel copy loop (2026-06-10)
 - Merged the SDR and HDR row-copy passes in loadImageFile into one nested loop.
 - Kept RGBA order and stride handling unchanged; HDR alpha remains 1.0f.
@@ -84,3 +89,14 @@
 2026-06-10: Added Config namespace for window/panel/slider defaults; reused it in both Application UI code and shared UI panel helpers.
 2026-06-10: OpenGL texture creation should check GL_MAX_TEXTURE_SIZE before upload; Vulkan should cache physical device limits for the same validation.
 2026-06-10: renderer_gl.cpp now uses log.h + LOG_ERROR for texture-limit failures; app.cpp dead panel/dialog methods were removed because UIPanels namespace owns the active UI rendering path.
+
+## Task 0.5 — Pixel Baseline Capture (2026-06-10)
+- Created standalone `tests/baseline_gen.cpp` — NOT part of CMake build, one-shot tool compiled with MSVC `cl /EHsc /std:c++17`
+- Verified: `image_loader_android.cpp` and `native.cpp` tone curves produce **byte-identical** output for all 3 modes
+  - Different function names (reinhard/ringbuf, acesFilmic/acesFilm, uncharted2Curve/unch2), identical math
+- Exposure=0.0 verified: all RGB=0, A=255
+- Output: 64 bytes per file (4×4 pixels × 4 channels uint8_t). Task spec says "256 bytes" but that's the float *input* size.
+  - `tests/baseline/android_reinhard.bin` — first pixel: R=51 G=85 B=109 A=255
+  - `tests/baseline/android_aces.bin` — first pixel: R=95 G=157 B=188 A=255
+  - `tests/baseline/android_uncharted2.bin` — first pixel: R=39 G=69 B=93 A=255
+- These baselines serve as ground truth for B.4 tonemap extraction regression testing

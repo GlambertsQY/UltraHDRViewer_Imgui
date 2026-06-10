@@ -5,6 +5,7 @@ plugins {
 android {
     namespace 'com.uhdrviewer'
     compileSdk rootProject.ext.compileSdkVersion
+    ndkVersion "23.1.7779620"
 
     defaultConfig {
         applicationId "com.uhdrviewer"
@@ -19,10 +20,6 @@ android {
                 arguments "-DANDROID_STL=c++_shared", "-DDEPS_DIR=" + rootProject.ext.depsPath
                 abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
             }
-        }
-
-        ndk {
-            version "21.4.7075529"
         }
     }
 

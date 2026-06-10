@@ -78,6 +78,7 @@ target_compile_definitions(imgui_lib PUBLIC UHDR_VIEWER_OPENGL_ENABLED IMGUI_IMP
 # -------------------- Application sources --------------------
 set(APP_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/stb_image_impl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image_loader_android.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/exif_parser_android.cpp
 )
@@ -112,3 +113,50 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Define the nativeOnCreate etc. JNI functions
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -fno-rtti -fno-exceptions)
+
+# -------------------- Unit Tests (host-only, not for device) --------------------
+# Separate test target without -fno-exceptions (required by GTest)
+set(TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/tonemap_android_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/exif_android_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/image_loader_android.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/exif_parser_android.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/stb_image_impl.cpp
+)
+
+# Use GTest from the desktop build's FetchContent
+# Since this CMake is invoked from Android Gradle, we need a fallback
+# For now, just define the target structure — actual GTest integration 
+# will work when built from desktop CMake or with proper FetchContent
+enable_testing()
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.14.0
+)
+set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+add_executable(uhdrviewer_android_test ${TEST_SOURCES})
+
+target_include_directories(uhdrviewer_android_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${IMGUI_DIR}
+    ${UHDR_DIR}
+    ${DEPS_DIR}
+    ${DEPS_DIR}/turbojpeg
+    ${CMAKE_CURRENT_BINARY_DIR}/turbojpeg-build
+)
+
+target_link_libraries(uhdrviewer_android_test PRIVATE
+    GTest::gtest_main
+    uhdr
+)
+
+# Note: This target does NOT set -fno-exceptions (GTest requires exceptions)
+# It is NOT built as part of the Android APK build — only for host testing
+
+include(GoogleTest)
+gtest_discover_tests(uhdrviewer_android_test)

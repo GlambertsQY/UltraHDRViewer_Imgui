@@ -4,3 +4,4 @@
 - The GLFW hint order note now reflects the fixed app.cpp flow, with the old bug language removed.
 - Desktop and Android ImageData differences are called out clearly, which helps avoid cross-platform confusion during future updates.
 - Test coverage is documented around Google Test, ctest, and the baseline pixel diff file at `tests/baseline/ref_pixels.raw`.
+- README.md still lags the updated skill on src structure; treat README-only mismatches as known inconsistencies, not regressions.

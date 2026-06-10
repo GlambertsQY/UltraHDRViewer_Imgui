@@ -287,11 +287,11 @@ Final Verification:
 
 ## Final Verification Wave
 
-- [ ] F1. **Must Have 对照验证** — `quick`
+- [x] F1. **Must Have 对照验证** — `quick` → APPROVE (10/10)
   读取 `.opencode/skills/ultrahdr-viewer.md`，逐项对照 Must Have 清单。确认所有 10 个 Must Have 条目均已满足。报告通过/未通过。
   Output: `Must Have [N/10] | 缺失项: [...] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **README.md 一致性检查** — `quick`
+- [x] F2. **README.md 一致性检查** — `quick` → WARN (8 differences, README outdated — expected)
   读取 `README.md` 并比较与 skill 文件的项目结构。记录差异（在 README 而非 skill 中）。如果 README.md 不在范围内，记录为"已知不一致"。
   Output: `Consistency [MATCH/N issues] | Differences: [...] | VERDICT: APPROVE/WARN`
 

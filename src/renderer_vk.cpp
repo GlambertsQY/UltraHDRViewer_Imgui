@@ -586,7 +586,7 @@ void VulkanRenderer::uploadTextureData(VulkanTexture& tex, const ImageData& imag
 
     void* data;
     vkMapMemory(m_device, stagingMem, 0, size, 0, &data);
-    memcpy(data, image.pixels, (size_t)size);
+    memcpy(data, image.pixels.data(), (size_t)size);
     vkUnmapMemory(m_device, stagingMem);
 
     // Image
@@ -643,7 +643,7 @@ void VulkanRenderer::uploadTextureData(VulkanTexture& tex, const ImageData& imag
 }
 
 void* VulkanRenderer::createTexture(const ImageData& image) {
-    if (!image.pixels || image.width <= 0 || image.height <= 0) return nullptr;
+    if (image.pixels.empty() || image.width <= 0 || image.height <= 0) return nullptr;
     VulkanTexture* tex = new VulkanTexture();
     uploadTextureData(*tex, image);
     return tex;

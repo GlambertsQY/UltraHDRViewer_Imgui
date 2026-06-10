@@ -3,20 +3,19 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 struct GLFWwindow;
 
 struct ImageData {
-    uint8_t* pixels = nullptr;   // Always RGBA8888 for display
+    std::vector<uint8_t> pixels;   // Always RGBA8888 for display
     int width = 0;
     int height = 0;
     int channels = 4;
     std::string filePath;
 
-    ~ImageData();
-
     size_t dataSize() const {
-        return (size_t)width * height * channels;
+        return pixels.size();
     }
 };
 

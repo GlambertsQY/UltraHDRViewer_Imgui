@@ -45,7 +45,6 @@ void toneMapImage(const float* hdr, uint8_t* sdr, int w, int h,
 void applyToneMap(const HDRData& hdr, ImageData& sdr,
                   float exposure, float gamma, int mode) {
     sdr.width=hdr.width; sdr.height=hdr.height; sdr.channels=4;
-    if(sdr.pixels) delete[] sdr.pixels;
-    sdr.pixels=new uint8_t[(size_t)hdr.width*hdr.height*4];
-    toneMapImage(hdr.pixels.data(), sdr.pixels, hdr.width, hdr.height, exposure, gamma, mode);
+    sdr.pixels.resize((size_t)hdr.width*hdr.height*4);
+    toneMapImage(hdr.pixels.data(), sdr.pixels.data(), hdr.width, hdr.height, exposure, gamma, mode);
 }

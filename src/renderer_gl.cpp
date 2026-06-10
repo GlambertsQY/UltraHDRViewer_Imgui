@@ -32,7 +32,7 @@ static unsigned int uploadTexture(const ImageData& image) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height,
-                 0, GL_RGBA, GL_UNSIGNED_BYTE, image.pixels);
+                 0, GL_RGBA, GL_UNSIGNED_BYTE, image.pixels.data());
 
     glBindTexture(GL_TEXTURE_2D, 0);
     return texID;
@@ -87,7 +87,7 @@ void OpenGLRenderer::render() {
 }
 
 void* OpenGLRenderer::createTexture(const ImageData& image) {
-    if (!image.pixels || image.width <= 0 || image.height <= 0) return nullptr;
+    if (image.pixels.empty() || image.width <= 0 || image.height <= 0) return nullptr;
     return (void*)(intptr_t)uploadTexture(image);
 }
 
@@ -98,11 +98,11 @@ void OpenGLRenderer::destroyTexture(void* texture) {
 }
 
 void OpenGLRenderer::updateTexture(void* texture, const ImageData& image) {
-    if (!texture || !image.pixels) return;
+    if (!texture || image.pixels.empty()) return;
     GLuint texID = (GLuint)(intptr_t)texture;
     glBindTexture(GL_TEXTURE_2D, texID);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, image.width, image.height,
-                    GL_RGBA, GL_UNSIGNED_BYTE, image.pixels);
+                    GL_RGBA, GL_UNSIGNED_BYTE, image.pixels.data());
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 

@@ -13,7 +13,7 @@ TEST(ImageLoadTest, LoadUltraHDR) {
     // ImageData checks
     EXPECT_GT(img.width, 0);
     EXPECT_GT(img.height, 0);
-    EXPECT_NE(img.pixels, nullptr);
+    EXPECT_FALSE(img.pixels.empty());
     EXPECT_GT(img.dataSize(), 0u);
 
     // HDRData checks
@@ -26,6 +26,6 @@ TEST(ImageLoadTest, LoadUltraHDR) {
     // Save raw RGBA baseline for future pixel-diff comparison
     std::ofstream out("tests/baseline/ref_pixels.raw", std::ios::binary);
     ASSERT_TRUE(out.is_open()) << "Failed to open baseline output file";
-    out.write(reinterpret_cast<const char*>(img.pixels), img.dataSize());
+    out.write(reinterpret_cast<const char*>(img.pixels.data()), img.dataSize());
     out.close();
 }

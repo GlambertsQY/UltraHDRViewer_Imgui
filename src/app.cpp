@@ -386,7 +386,7 @@ void Application::saveImageFile() {
 
     // Write pixel rows bottom-up (BMP convention), convert RGBA->BGR
     std::vector<uint8_t> row(rowSize, 0);
-    uint8_t* src = m_currentImage->pixels;
+    uint8_t* src = m_currentImage->pixels.data();
     for (int y = h-1; y >= 0; y--) {
         uint8_t* srcRow = src + (size_t)y * w * 4;
         for (int x = 0; x < w; x++) {
@@ -433,7 +433,7 @@ void Application::loadImage(const std::string& path) {
         fprintf(stderr, "Unknown exception loading image\n");
     }
 
-    if (ok && image->pixels && image->width > 0 && image->height > 0) {
+    if (ok && !image->pixels.empty() && image->width > 0 && image->height > 0) {
         m_currentImage = std::move(image);
         m_hdrData = std::move(hdr);
         m_exifData = exif;

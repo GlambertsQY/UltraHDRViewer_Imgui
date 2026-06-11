@@ -505,19 +505,19 @@ Critical Path: Task 1.4 → Task 2.1 → Task 2.2 → Task 2.4 → F1-F4
 
 ## Final Verification Wave
 
-- [ ] F1. **构建验证** — `quick`
+- [x] F1. **构建验证** — `quick` → PASS* (baseline_gen.cpp artifact only)
   运行 `./gradlew assembleDebug`，确认 4 ABI 全部编译通过，GTest 目标链接成功。
   Output: `Build [PASS/FAIL] | GTests [PASS/N fail] | VERDICT`
 
-- [ ] F2. **像素一致性验证** — `quick`
+- [x] F2. **像素一致性验证** — `quick` → PASS
   对比重构前后色调映射输出，逐字节验证无差异。
   Output: `PixelDiff [MATCH/MISMATCH] | VERDICT`
 
-- [ ] F3. **死代码扫描** — `quick`
+- [x] F3. **死代码扫描** — `quick` → PASS (0 violations)
   Grep 验证：零 `delete[] pixels`、零 `new uint8_t[`、零内联 tone curves、零 uhdr_create_decoder 在 native.cpp。
   Output: `DeadCode [N violations] | VERDICT`
 
-- [ ] F4. **计划合规审计** — `oracle`
+- [x] F4. **计划合规审计** — `oracle` → APPROVE (MustHave 8/8, MustNotHave 6/6)
   逐项对照 Must Have / Must NOT Have 清单验证。
   Output: `MustHave [N/8] | MustNotHave [N/6] | VERDICT`
 

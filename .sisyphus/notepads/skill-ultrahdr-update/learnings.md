@@ -5,3 +5,6 @@
 - Desktop and Android ImageData differences are called out clearly, which helps avoid cross-platform confusion during future updates.
 - Test coverage is documented around Google Test, ctest, and the baseline pixel diff file at `tests/baseline/ref_pixels.raw`.
 - README.md still lags the updated skill on src structure; treat README-only mismatches as known inconsistencies, not regressions.
+## 2026-06-11
+- Verified tone mapping baselines exist and are 64 bytes each.
+- First pixels: reinhard `51,85,109,255`, aces `95,157,188,255`, uncharted2 `39,69,93,255`.

@@ -1,3 +1,4 @@
 2026-06-10: Android NDK should be set with `android.ndkVersion` in `android/app/build.gradle`; remove any `defaultConfig.ndk` block to avoid stale version settings.
 2026-06-10: `android/app/src/main/cpp/image_data.h` and `android/app/src/main/cpp/exif_data.h` were dormant duplicates of `hdr_types.h` and can be deleted safely when no sources include them.
 2026-06-11: Migrated Android ImageData::pixels from raw `uint8_t*` to `std::vector<uint8_t>`. Key changes: removed `~ImageData()` declaration/definition, replaced all `new[]`/`delete[]` with `.resize()`, all raw pointer accesses with `.data()`. Also fixed `image->pixels` boolean check to `!image->pixels.empty()` (vector has no implicit bool conversion).
+2026-06-11: Added `android_config.h` for Android UI constants (`ZOOM`, `EXPOSURE`, `GAMMA`, defaults) and wired `native.cpp` sliders/reset/initializers to use `AndroidConfig::*` instead of hardcoded values.

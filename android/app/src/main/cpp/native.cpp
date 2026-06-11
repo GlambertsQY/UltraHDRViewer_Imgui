@@ -19,6 +19,7 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
 
+#include "android_config.h"
 #include "hdr_types.h"
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "UHDRViewer", __VA_ARGS__)
@@ -34,13 +35,13 @@ struct AndroidApp {
     ExifData exifData;
     void* texture = nullptr;
 
-    float exposure = 1.0f;
-    float gamma = 2.2f;
+    float exposure = AndroidConfig::DEFAULT_EXPOSURE;
+    float gamma = AndroidConfig::DEFAULT_GAMMA;
     int toneMappingMode = 0;
     bool toneMapDirty = false;
 
     float offsetX = 0.0f, offsetY = 0.0f;
-    float zoom = 1.0f;
+    float zoom = AndroidConfig::DEFAULT_ZOOM;
     bool fitToWindow = true;
 
     bool running = false;
@@ -148,14 +149,14 @@ static void renderUI(AndroidApp* app) {
                     app->textureDirty = true;
                 }
             }
-            if (ImGui::SliderFloat("Exposure", &app->exposure, 0.01f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
+            if (ImGui::SliderFloat("Exposure", &app->exposure, AndroidConfig::EXPOSURE_MIN, AndroidConfig::EXPOSURE_MAX, "%.2f", ImGuiSliderFlags_Logarithmic)) {
                 if (app->hdrData) {
                     applyToneMap(*app->hdrData, *app->currentImage,
                                 app->exposure, app->gamma, app->toneMappingMode);
                     app->textureDirty = true;
                 }
             }
-            if (ImGui::SliderFloat("Gamma", &app->gamma, 1.0f, 4.0f, "%.2f")) {
+            if (ImGui::SliderFloat("Gamma", &app->gamma, AndroidConfig::GAMMA_MIN, AndroidConfig::GAMMA_MAX, "%.2f")) {
                 if (app->hdrData) {
                     applyToneMap(*app->hdrData, *app->currentImage,
                                 app->exposure, app->gamma, app->toneMappingMode);
@@ -168,9 +169,9 @@ static void renderUI(AndroidApp* app) {
 
         if (ImGui::CollapsingHeader("View", ImGuiTreeNodeFlags_DefaultOpen)) {
             if (ImGui::Checkbox("Fit to Window", &app->fitToWindow)) {}
-            ImGui::SliderFloat("Zoom", &app->zoom, 0.05f, 20.0f, "%.2fx", ImGuiSliderFlags_Logarithmic);
+            ImGui::SliderFloat("Zoom", &app->zoom, AndroidConfig::ZOOM_MIN, AndroidConfig::ZOOM_MAX, "%.2fx", ImGuiSliderFlags_Logarithmic);
             if (ImGui::Button("Reset")) {
-                app->zoom = 1.0f; app->offsetX = 0; app->offsetY = 0; app->fitToWindow = true;
+                app->zoom = AndroidConfig::DEFAULT_ZOOM; app->offsetX = 0; app->offsetY = 0; app->fitToWindow = true;
             }
         }
 

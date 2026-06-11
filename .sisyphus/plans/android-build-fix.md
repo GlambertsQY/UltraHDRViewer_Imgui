@@ -464,7 +464,7 @@ Critical Path: Task 1.4 → Task 2.1 → Task 2.2 → Task 2.4 → F1-F4
 
   **Commit**: YES | Message: `refactor(android): delegate image loading to image_loader_android.cpp`
 
-- [ ] 2.4 魔法数字替换 + final cleanup
+- [x] 2.4 魔法数字替换 + final cleanup
 
   **What to do**:
   - `native.cpp` 中硬编码常量替换：

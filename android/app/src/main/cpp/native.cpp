@@ -53,49 +53,6 @@ struct AndroidApp {
 
 static AndroidApp* s_app = nullptr;
 
-static float ringbuf(float x) { return x / (1.0f + x); }
-static float acesFilm(float x) {
-    float a=2.51f, b=0.03f, c=2.43f, d=0.59f, e=0.14f;
-    float v = (x*(a*x+b)) / (x*(c*x+d)+e);
-    return v<0?0:(v>1?1:v);
-}
-static float unch2(float x) {
-    float A=0.15f, B=0.50f, C=0.10f, D=0.20f, E=0.02f, F=0.30f, W=11.2f;
-    float curr = ((x*2*(A*x*2+C*B)+D*E)/(x*2*(A*x*2+B)+D*F))-E/F;
-    float white = ((W*2*(A*W*2+C*B)+D*E)/(W*2*(A*W*2+B)+D*F))-E/F;
-    return curr/white;
-}
-
-static void applyToneMap(AndroidApp* app) {
-    if (!app->hdrData || !app->currentImage) return;
-    app->currentImage->width = app->hdrData->width;
-    app->currentImage->height = app->hdrData->height;
-    app->currentImage->pixels.resize((size_t)app->hdrData->width * app->hdrData->height * 4);
-
-    const float* hdr = app->hdrData->pixels.data();
-    uint8_t* sdr = app->currentImage->pixels.data();
-    int w = app->hdrData->width, h = app->hdrData->height;
-    float invG = 1.0f / app->gamma;
-    for (int i = 0; i < w * h; i++) {
-        float r = hdr[i*4+0] * app->exposure;
-        float g = hdr[i*4+1] * app->exposure;
-        float b = hdr[i*4+2] * app->exposure;
-        switch (app->toneMappingMode) {
-            case 0: r=ringbuf(r); g=ringbuf(g); b=ringbuf(b); break;
-            case 1: r=acesFilm(r); g=acesFilm(g); b=acesFilm(b); break;
-            case 2: r=unch2(r); g=unch2(g); b=unch2(b); break;
-        }
-        if (r<0) r=0; if (g<0) g=0; if (b<0) b=0;
-        r = std::pow(r, invG); g = std::pow(g, invG); b = std::pow(b, invG);
-        int ri = (int)(r*255+0.5f); if (ri>255) ri=255;
-        int gi = (int)(g*255+0.5f); if (gi>255) gi=255;
-        int bi = (int)(b*255+0.5f); if (bi>255) bi=255;
-        sdr[i*4+0] = (uint8_t)ri; sdr[i*4+1] = (uint8_t)gi;
-        sdr[i*4+2] = (uint8_t)bi; sdr[i*4+3] = 255;
-    }
-    app->textureDirty = true;
-}
-
 static void loadImage(AndroidApp* app, const std::string& path) {
     if (app->texture) {
         glDeleteTextures(1, (GLuint*)&app->texture);
@@ -204,7 +161,11 @@ static void loadImage(AndroidApp* app, const std::string& path) {
                      0, GL_RGBA, GL_UNSIGNED_BYTE, app->currentImage->pixels.data());
         app->texture = (void*)(intptr_t)tex;
 
-        if (app->hdrData) applyToneMap(app);
+        if (app->hdrData) {
+            applyToneMap(*app->hdrData, *app->currentImage,
+                        app->exposure, app->gamma, app->toneMappingMode);
+            app->textureDirty = true;
+        }
 
         app->fitToWindow = true;
         LOGI("Loaded: %dx%d", app->currentImage->width, app->currentImage->height);
@@ -251,13 +212,25 @@ static void renderUI(AndroidApp* app) {
         if (ImGui::CollapsingHeader("Tone Mapping", ImGuiTreeNodeFlags_DefaultOpen)) {
             const char* modes[] = {"Reinhard", "ACES Filmic", "Uncharted 2"};
             if (ImGui::Combo("Mode", &app->toneMappingMode, modes, 3)) {
-                if (app->hdrData) { applyToneMap(app); }
+                if (app->hdrData) {
+                    applyToneMap(*app->hdrData, *app->currentImage,
+                                app->exposure, app->gamma, app->toneMappingMode);
+                    app->textureDirty = true;
+                }
             }
             if (ImGui::SliderFloat("Exposure", &app->exposure, 0.01f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
-                if (app->hdrData) applyToneMap(app);
+                if (app->hdrData) {
+                    applyToneMap(*app->hdrData, *app->currentImage,
+                                app->exposure, app->gamma, app->toneMappingMode);
+                    app->textureDirty = true;
+                }
             }
             if (ImGui::SliderFloat("Gamma", &app->gamma, 1.0f, 4.0f, "%.2f")) {
-                if (app->hdrData) applyToneMap(app);
+                if (app->hdrData) {
+                    applyToneMap(*app->hdrData, *app->currentImage,
+                                app->exposure, app->gamma, app->toneMappingMode);
+                    app->textureDirty = true;
+                }
             }
         }
 

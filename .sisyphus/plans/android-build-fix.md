@@ -393,7 +393,7 @@ Critical Path: Task 1.4 → Task 2.1 → Task 2.2 → Task 2.4 → F1-F4
 
   **Commit**: YES | Message: `refactor(android): migrate ImageData to std::vector<uint8_t>`
 
-- [ ] 2.2 色调映射去重 — native.cpp 委托给 image_loader_android.cpp
+- [x] 2.2 色调映射去重 — native.cpp 委托给 image_loader_android.cpp
 
   **What to do**:
   - `native.cpp`: 删除 L56-67 的 3 个内联 tone curves（ringbuf, acesFilm, unch2）

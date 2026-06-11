@@ -427,7 +427,7 @@ Critical Path: Task 1.4 → Task 2.1 → Task 2.2 → Task 2.4 → F1-F4
 
   **Commit**: YES | Message: `refactor(android): delegate tone mapping to image_loader_android.cpp`
 
-- [ ] 2.3 加载管线去重 — native.cpp 委托给 loadImageFile/loadRegularImage
+- [x] 2.3 加载管线去重 — native.cpp 委托给 loadImageFile/loadRegularImage
 
   **What to do**:
   - `native.cpp`: 重构 `loadImage(AndroidApp*, const std::string&)` — 移除 L115-188 的内联 Ultra HDR 解码逻辑

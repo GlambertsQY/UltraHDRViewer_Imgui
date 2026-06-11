@@ -13,16 +13,13 @@
 #include <cmath>
 #include <vector>
 #include <jni.h>
-#include <fstream>
 #include <algorithm>
 
-#include "ultrahdr_api.h"
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
 
 #include "hdr_types.h"
-#include "stb_image.h"
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "UHDRViewer", __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "UHDRViewer", __VA_ARGS__)
@@ -69,80 +66,13 @@ static void loadImage(AndroidApp* app, const std::string& path) {
     ExifData exif;
     bool ok = false;
 
-    std::ifstream f(path, std::ios::binary|std::ios::ate);
-    if (f.is_open()) {
-        auto sz = f.tellg();
-        f.seekg(0, std::ios::beg);
-        std::vector<uint8_t> data((size_t)sz);
-        if (f.read((char*)data.data(), sz)) {
-            exif = parseExif(data.data(), data.size());
+    // Try Ultra HDR decode via shared loader
+    ok = loadImageFile(path, *image, hdr, &exif);
 
-            if (is_uhdr_image(data.data(), (int)data.size())) {
-                LOGI("Ultra HDR detected");
-                uhdr_codec_private_t* dec = uhdr_create_decoder();
-                if (dec) {
-                    uhdr_compressed_image_t img{};
-                    img.data = data.data();
-                    img.data_sz = data.size();
-                    img.capacity = data.size();
-
-                    if (uhdr_dec_set_image(dec, &img).error_code == UHDR_CODEC_OK &&
-                        uhdr_dec_set_out_img_format(dec, UHDR_IMG_FMT_32bppRGBA8888).error_code == UHDR_CODEC_OK) {
-                        uhdr_dec_set_out_color_transfer(dec, UHDR_CT_SRGB);
-                        if (uhdr_decode(dec).error_code == UHDR_CODEC_OK) {
-                            uhdr_raw_image_t* decImg = uhdr_get_decoded_image(dec);
-                            if (decImg) {
-                                int w = (int)decImg->w, h = (int)decImg->h;
-                                uint8_t* src = (uint8_t*)decImg->planes[UHDR_PLANE_PACKED];
-                                size_t stride = decImg->stride[UHDR_PLANE_PACKED];
-
-                                hdr = std::make_unique<HDRData>();
-                                hdr->width = w; hdr->height = h;
-                                hdr->pixels.resize((size_t)w*h*4);
-
-                                image->width = w; image->height = h;
-                                image->channels = 4;
-                                image->filePath = path;
-                                image->pixels.resize((size_t)w * h * 4);
-
-                                for (int y = 0; y < h; y++) {
-                                    uint8_t* dst = image->pixels.data() + (size_t)y*w*4;
-                                    float* hd = hdr->pixels.data() + (size_t)y*w*4;
-                                    uint8_t* sr = src + (size_t)y*stride*4;
-                                    for (int x = 0; x < w; x++) {
-                                        dst[x*4+0] = sr[x*4+0];
-                                        dst[x*4+1] = sr[x*4+1];
-                                        dst[x*4+2] = sr[x*4+2];
-                                        dst[x*4+3] = 255;
-                                        hd[x*4+0] = sr[x*4+0]/255.0f;
-                                        hd[x*4+1] = sr[x*4+1]/255.0f;
-                                        hd[x*4+2] = sr[x*4+2]/255.0f;
-                                        hd[x*4+3] = 1.0f;
-                                    }
-                                }
-                                ok = true;
-                            }
-                        }
-                    }
-                    uhdr_release_decoder(dec);
-                }
-            }
-
-            if (!ok) {
-                LOGI("Falling back to stb_image");
-                int w=0, h=0, ch=0;
-                unsigned char* imgd = stbi_load(path.c_str(), &w, &h, &ch, 4);
-                if (imgd && w > 0 && h > 0) {
-                    image->width = w; image->height = h;
-                    image->channels = 4;
-                    image->filePath = path;
-                    image->pixels.resize((size_t)w * h * 4);
-                    memcpy(image->pixels.data(), imgd, (size_t)w * h * 4);
-                    stbi_image_free(imgd);
-                    ok = true;
-                }
-            }
-        }
+    // Fallback: regular image via stb
+    if (!ok) {
+        LOGI("Ultra HDR decode failed or not HDR, trying regular image...");
+        ok = loadRegularImage(path, *image, &exif);
     }
 
     if (ok && !image->pixels.empty() && image->width > 0 && image->height > 0) {

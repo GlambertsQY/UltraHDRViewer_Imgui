@@ -350,7 +350,7 @@ Critical Path: Task 1.4 → Task 2.1 → Task 2.2 → Task 2.4 → F1-F4
 
 ### Wave 2 — 重构实现（依赖 Wave 1，顺序执行）
 
-- [ ] 2.1 ImageData 迁移到 `std::vector<uint8_t>`
+- [x] 2.1 ImageData 迁移到 `std::vector<uint8_t>`
 
   **What to do**:
   - `hdr_types.h`: 将 `uint8_t* pixels = nullptr` 改为 `std::vector<uint8_t> pixels`；移除 `~ImageData()` 声明

@@ -9,9 +9,6 @@
 #include "ultrahdr_api.h"
 #include "stb_image.h"
 
-ImageData::~ImageData() {
-    if (pixels) { delete[] pixels; pixels = nullptr; }
-}
 
 static float reinhard(float x) { return x / (1.0f + x); }
 
@@ -50,9 +47,8 @@ void toneMapImage(const float* hdr, uint8_t* sdr, int w, int h,
 void applyToneMap(const HDRData& hdr, ImageData& sdr,
                   float exposure, float gamma, int mode) {
     sdr.width=hdr.width; sdr.height=hdr.height; sdr.channels=4;
-    if(sdr.pixels) delete[] sdr.pixels;
-    sdr.pixels=new uint8_t[(size_t)hdr.width*hdr.height*4];
-    toneMapImage(hdr.pixels.data(), sdr.pixels, hdr.width, hdr.height, exposure, gamma, mode);
+    sdr.pixels.resize((size_t)hdr.width * hdr.height * 4);
+    toneMapImage(hdr.pixels.data(), sdr.pixels.data(), hdr.width, hdr.height, exposure, gamma, mode);
 }
 
 bool isUltraHDRFile(const std::string& path) {
@@ -116,10 +112,10 @@ bool loadImageFile(const std::string& filePath, ImageData& outSDR,
     hdr->pixels.resize((size_t)w*h*4);
 
     outSDR.width=w; outSDR.height=h; outSDR.channels=4; outSDR.filePath=filePath;
-    outSDR.pixels=new uint8_t[(size_t)w*h*4];
+    outSDR.pixels.resize((size_t)w * h * 4);
 
     for(int y=0; y<h; y++) {
-        uint8_t* dstRow=outSDR.pixels+(size_t)y*w*4;
+        uint8_t* dstRow=outSDR.pixels.data()+(size_t)y*w*4;
         float* hdrRow=hdr->pixels.data()+(size_t)y*w*4;
         uint8_t* srcRow=src+(size_t)y*srcStridePx*4;
         for(int x=0; x<w; x++) {
@@ -170,8 +166,8 @@ bool loadRegularImage(const std::string& filePath, ImageData& outSDR, ExifData* 
     outSDR.height = h;
     outSDR.channels = 4;
     outSDR.filePath = filePath;
-    outSDR.pixels = new uint8_t[(size_t)w * h * 4];
-    memcpy(outSDR.pixels, imgdata, (size_t)w * h * 4);
+    outSDR.pixels.resize((size_t)w * h * 4);
+    memcpy(outSDR.pixels.data(), imgdata, (size_t)w * h * 4);
     stbi_image_free(imgdata);
 
     return true;

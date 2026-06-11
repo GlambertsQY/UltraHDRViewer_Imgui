@@ -70,11 +70,10 @@ static void applyToneMap(AndroidApp* app) {
     if (!app->hdrData || !app->currentImage) return;
     app->currentImage->width = app->hdrData->width;
     app->currentImage->height = app->hdrData->height;
-    if (app->currentImage->pixels) delete[] app->currentImage->pixels;
-    app->currentImage->pixels = new uint8_t[(size_t)app->hdrData->width * app->hdrData->height * 4];
+    app->currentImage->pixels.resize((size_t)app->hdrData->width * app->hdrData->height * 4);
 
     const float* hdr = app->hdrData->pixels.data();
-    uint8_t* sdr = app->currentImage->pixels;
+    uint8_t* sdr = app->currentImage->pixels.data();
     int w = app->hdrData->width, h = app->hdrData->height;
     float invG = 1.0f / app->gamma;
     for (int i = 0; i < w * h; i++) {
@@ -147,10 +146,10 @@ static void loadImage(AndroidApp* app, const std::string& path) {
                                 image->width = w; image->height = h;
                                 image->channels = 4;
                                 image->filePath = path;
-                                image->pixels = new uint8_t[(size_t)w*h*4];
+                                image->pixels.resize((size_t)w * h * 4);
 
                                 for (int y = 0; y < h; y++) {
-                                    uint8_t* dst = image->pixels + (size_t)y*w*4;
+                                    uint8_t* dst = image->pixels.data() + (size_t)y*w*4;
                                     float* hd = hdr->pixels.data() + (size_t)y*w*4;
                                     uint8_t* sr = src + (size_t)y*stride*4;
                                     for (int x = 0; x < w; x++) {
@@ -180,8 +179,8 @@ static void loadImage(AndroidApp* app, const std::string& path) {
                     image->width = w; image->height = h;
                     image->channels = 4;
                     image->filePath = path;
-                    image->pixels = new uint8_t[(size_t)w*h*4];
-                    memcpy(image->pixels, imgd, (size_t)w*h*4);
+                    image->pixels.resize((size_t)w * h * 4);
+                    memcpy(image->pixels.data(), imgd, (size_t)w * h * 4);
                     stbi_image_free(imgd);
                     ok = true;
                 }
@@ -189,7 +188,7 @@ static void loadImage(AndroidApp* app, const std::string& path) {
         }
     }
 
-    if (ok && image->pixels && image->width > 0 && image->height > 0) {
+    if (ok && !image->pixels.empty() && image->width > 0 && image->height > 0) {
         app->currentImage = std::move(image);
         app->hdrData = std::move(hdr);
         app->exifData = exif;
@@ -202,7 +201,7 @@ static void loadImage(AndroidApp* app, const std::string& path) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, app->currentImage->width, app->currentImage->height,
-                     0, GL_RGBA, GL_UNSIGNED_BYTE, app->currentImage->pixels);
+                     0, GL_RGBA, GL_UNSIGNED_BYTE, app->currentImage->pixels.data());
         app->texture = (void*)(intptr_t)tex;
 
         if (app->hdrData) applyToneMap(app);
@@ -345,7 +344,7 @@ static void updateTexture(AndroidApp* app) {
         GLuint tex = (GLuint)(intptr_t)app->texture;
         glBindTexture(GL_TEXTURE_2D, tex);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, app->currentImage->width, app->currentImage->height,
-                     0, GL_RGBA, GL_UNSIGNED_BYTE, app->currentImage->pixels);
+                     0, GL_RGBA, GL_UNSIGNED_BYTE, app->currentImage->pixels.data());
         app->textureDirty = false;
     }
 }

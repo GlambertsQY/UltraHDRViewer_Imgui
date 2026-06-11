@@ -280,7 +280,7 @@ Critical Path: Task 1.4 → Task 2.1 → Task 2.2 → Task 2.4 → F1-F4
 
   **Commit**: YES | Message: `build(android): add GTest test target to CMake`
 
-- [ ] 1.6 创建 Android 色调映射单元测试
+- [x] 1.6 创建 Android 色调映射单元测试
 
   **What to do**:
   - 创建 `android/app/src/main/cpp/tonemap_android_test.cpp`
@@ -315,7 +315,7 @@ Critical Path: Task 1.4 → Task 2.1 → Task 2.2 → Task 2.4 → F1-F4
 
   **Commit**: YES | Message: `test(android): add GTest tone mapping unit tests`
 
-- [ ] 1.7 创建 Android EXIF 解析单元测试
+- [x] 1.7 创建 Android EXIF 解析单元测试
 
   **What to do**:
   - 创建 `android/app/src/main/cpp/exif_android_test.cpp`

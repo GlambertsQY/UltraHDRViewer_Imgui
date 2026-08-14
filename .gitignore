@@ -66,3 +66,7 @@ desktop.ini
 *.png
 *.bmp
 !deps/libultrahdr/tests/data/*.jpg
+
+# AI agent working dirs
+.omo/
+.sisyphus/

@@ -70,3 +70,7 @@ desktop.ini
 # AI agent working dirs
 .omo/
 .sisyphus/
+
+# Runtime artifacts
+imgui.ini
+captures/

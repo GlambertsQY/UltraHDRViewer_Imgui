@@ -13,6 +13,7 @@ struct AppConfig {
     std::string backend = "opengl";
     int windowWidth = Config::WINDOW_DEFAULT_WIDTH;
     int windowHeight = Config::WINDOW_DEFAULT_HEIGHT;
+    std::string initialImage;  // optional image to load at startup
 };
 
 class Application {
@@ -51,6 +52,10 @@ private:
     int m_toneMappingMode = 0;  // 0=Reinhard, 1=ACES, 2=Uncharted2
     bool m_toneMapDirty = false;
 
+    // HDR output state
+    bool m_hdrOutputWanted = false;
+    void* m_hdrTexture = nullptr;
+
     int m_displayWidth = 0;
     int m_displayHeight = 0;
 
@@ -64,6 +69,9 @@ private:
     void reapplyToneMapping();
     void resetView();
     void fitToWindow();
+    void onHdrToggle(bool enable);
+    void bakeHdrStyle(HdrMode mode);
+    bool isHdrActive() const { return m_renderer && m_renderer->activeHdrMode() != HdrMode::Off; }
 
     static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
     static void dropCallback(GLFWwindow* window, int count, const char** paths);

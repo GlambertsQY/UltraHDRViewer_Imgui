@@ -9,13 +9,6 @@
 
 struct GLFWwindow;
 
-// Decoded HDR pixel data (linear float RGBA)
-struct HDRData {
-    std::vector<float> pixels;  // RGBA float, width*height*4
-    int width = 0;
-    int height = 0;
-};
-
 // Load Ultra HDR image, returns HDRData for re-tone-mapping
 bool loadImageFile(const std::string& filePath, ImageData& outSDR,
                    std::unique_ptr<HDRData>& outHDR,

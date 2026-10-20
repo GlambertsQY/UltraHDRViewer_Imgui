@@ -55,15 +55,15 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DUHDR_VIEWER_VULKAN=OFF
 cmake --build build
 ```
 
-**Or Visual Studio (cmake >= 3.21 for VS 2022)**
+**Or Visual Studio (cmake >= 3.21 for VS 2026)**
 
 ```bat
 :: OpenGL backend
-cmake --preset vs2022-opengl
+cmake --preset vs2026-opengl
 cmake --build build --config Release
 
 :: Vulkan backend
-cmake --preset vs2022-vulkan
+cmake --preset vs2026-vulkan
 cmake --build build --config Release
 ```
 
@@ -113,6 +113,7 @@ Open images from the file manager or share them to the app.
 | `F` | Fit to window |
 | `R` | Reset view |
 | `I` | Toggle info panel |
+| `H` | Toggle HDR output (HDR display + Vulkan only) |
 | `Esc` | Exit |
 
 ## Project Structure

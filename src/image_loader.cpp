@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <vector>
 #include "log.h"
+#include "config.h"
+#include "half_float.h"
 #include "ultrahdr_api.h"
 #include "stb_image.h"
 #include "exif_parser.h"
@@ -54,13 +56,18 @@ bool loadImageFile(const std::string& filePath, ImageData& outSDR,
         uhdr_release_decoder(dec); return false;
     }
 
-    // Always request RGBA8888 output - let libultrahdr handle the conversion
-    err = uhdr_dec_set_out_img_format(dec, UHDR_IMG_FMT_32bppRGBA8888);
+    // Request true HDR output: linear half-float, gain map applied at full boost.
+    // (UHDR_CT_SRGB + RGBA8888 would return only the SDR rendition - no HDR data.)
+    err = uhdr_dec_set_out_img_format(dec, UHDR_IMG_FMT_64bppRGBAHalfFloat);
     if(err.error_code!=UHDR_CODEC_OK) {
         if(err.has_detail) LOG_ERROR("set_out_format: %s", err.detail);
         uhdr_release_decoder(dec); return false;
     }
-    uhdr_dec_set_out_color_transfer(dec, UHDR_CT_SRGB);
+    err = uhdr_dec_set_out_color_transfer(dec, UHDR_CT_LINEAR);
+    if(err.error_code!=UHDR_CODEC_OK) {
+        if(err.has_detail) LOG_ERROR("set_out_ct: %s", err.detail);
+        uhdr_release_decoder(dec); return false;
+    }
 
     err=uhdr_decode(dec);
     if(err.error_code!=UHDR_CODEC_OK) {
@@ -75,38 +82,37 @@ bool loadImageFile(const std::string& filePath, ImageData& outSDR,
     LOG_INFO("Decoded: %dx%d stride=%u fmt=%d", w, h,
              (unsigned)decoded->stride[UHDR_PLANE_PACKED], (int)decoded->fmt);
 
-    uint8_t* src=(uint8_t*)decoded->planes[UHDR_PLANE_PACKED];
+    if (decoded->fmt != UHDR_IMG_FMT_64bppRGBAHalfFloat) {
+        LOG_ERROR("Unexpected output format: %d", (int)decoded->fmt);
+        uhdr_release_decoder(dec); return false;
+    }
+
+    // Linear half-float RGBA: 1.0 = SDR white (203 nits), HDR highlights > 1.0
+    const uint16_t* src=(const uint16_t*)decoded->planes[UHDR_PLANE_PACKED];
     size_t srcStridePx=decoded->stride[UHDR_PLANE_PACKED];
 
-    // Allocate output buffers BEFORE releasing decoder
+    // Allocate HDR buffer BEFORE releasing decoder
     auto hdr=std::make_unique<HDRData>();
     hdr->width=w; hdr->height=h;
     hdr->pixels.resize((size_t)w*h*4);
 
-    outSDR.width=w; outSDR.height=h; outSDR.channels=4; outSDR.filePath=filePath;
-    outSDR.pixels.resize((size_t)w*h*4);
-
-    // Copy pixel data row by row (handles stride padding)
+    // Convert half-float -> float row by row (handles stride padding)
     for(int y=0; y<h; y++) {
-        uint8_t* dstRow=outSDR.pixels.data()+(size_t)y*w*4;
         float* hdrRow=hdr->pixels.data()+(size_t)y*w*4;
-        uint8_t* srcRow=src+(size_t)y*srcStridePx*4;
-        for(int x=0; x<w; x++) {
-            size_t si=(size_t)x*4;
-            dstRow[si+0]=srcRow[si+0];
-            dstRow[si+1]=srcRow[si+1];
-            dstRow[si+2]=srcRow[si+2];
-            dstRow[si+3]=srcRow[si+3];
-            hdrRow[si+0]=srcRow[si+0]/255.0f;
-            hdrRow[si+1]=srcRow[si+1]/255.0f;
-            hdrRow[si+2]=srcRow[si+2]/255.0f;
-            hdrRow[si+3]=1.0f;
+        const uint16_t* srcRow=src+(size_t)y*srcStridePx*4;
+        for(int x=0; x<w*4; x++) {
+            hdrRow[x]=halfToFloat(srcRow[x]);
         }
     }
 
     uhdr_release_decoder(dec);
 
     outHDR=std::move(hdr);
+
+    // Generate display SDR by tone mapping the HDR data with default parameters
+    applyToneMap(*outHDR, outSDR, Config::DEFAULT_EXPOSURE, Config::DEFAULT_GAMMA, 0);
+    outSDR.filePath=filePath;
+
     LOG_INFO("OK: %dx%d", w, h);
     return true;
 }

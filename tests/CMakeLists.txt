@@ -1,5 +1,7 @@
 enable_testing()
 file(GLOB TEST_SOURCES *.cpp)
+# baseline_gen.cpp is a standalone tool (has its own main), not part of the gtest binary
+list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/baseline_gen.cpp)
 list(APPEND TEST_SOURCES
     ../src/exif_parser.cpp
     ../src/image_loader.cpp

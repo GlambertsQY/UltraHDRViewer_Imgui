@@ -11,10 +11,12 @@ namespace UIPanels {
 
 void renderMenuBar(GLFWwindow* window, const ImageData* img, float zoom, bool isHDR,
                    bool& fitToWindow, bool& showInfo, bool& showAbout,
+                   bool hdrSupported, bool hdrActive, HdrMode hdrMode,
                    std::function<void()> onOpen,
                    std::function<void()> onSave,
                    std::function<void()> onFitToWindow,
-                   std::function<void()> onResetView)
+                   std::function<void()> onResetView,
+                   std::function<void(bool)> onHdrToggle)
 {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
@@ -32,6 +34,10 @@ void renderMenuBar(GLFWwindow* window, const ImageData* img, float zoom, bool is
             if (ImGui::MenuItem("Reset View", "R")) onResetView();
             ImGui::Separator();
             ImGui::MenuItem("Show Info", "I", &showInfo);
+            ImGui::Separator();
+            bool hdrOut = hdrActive;
+            bool canHdr = hdrSupported && isHDR;
+            if (ImGui::MenuItem("HDR 输出", nullptr, &hdrOut, canHdr)) onHdrToggle(hdrOut);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Help")) {
@@ -42,10 +48,17 @@ void renderMenuBar(GLFWwindow* window, const ImageData* img, float zoom, bool is
         ImGui::SameLine(ImGui::GetWindowWidth() - Config::PANEL_INFO_WIDTH);
         if (img) {
             const char* type = isHDR ? "HDR" : "SDR";
-            ImGui::Text("%dx%d %s | %.0f%% | %s",
-                        img->width, img->height,
-                        type, zoom * 100.0f,
-                        img->filePath.c_str());
+            if (hdrActive) {
+                const char* out = (hdrMode == HdrMode::ScRGB) ? "scRGB" : "HDR10";
+                ImGui::Text("%dx%d %s→%s | %.0f%% | %s",
+                            img->width, img->height, type, out, zoom * 100.0f,
+                            img->filePath.c_str());
+            } else {
+                ImGui::Text("%dx%d %s | %.0f%% | %s",
+                            img->width, img->height,
+                            type, zoom * 100.0f,
+                            img->filePath.c_str());
+            }
         } else {
             ImGui::TextDisabled("No image loaded");
         }
@@ -53,7 +66,7 @@ void renderMenuBar(GLFWwindow* window, const ImageData* img, float zoom, bool is
     }
 }
 
-void renderControlPanel(bool hasHDR,
+void renderControlPanel(bool hasHDR, bool hdrActive,
                         float& exposure, float& gamma,
                         int& toneMappingMode, bool& toneMapDirty,
                         bool& fitToWindow, float& zoom,
@@ -66,7 +79,8 @@ void renderControlPanel(bool hasHDR,
 
     if (!ImGui::Begin("Controls", nullptr, ImGuiWindowFlags_NoCollapse)) { ImGui::End(); return; }
 
-    if (!hasHDR) ImGui::BeginDisabled();
+    bool toneMapDisabled = !hasHDR || hdrActive;
+    if (toneMapDisabled) ImGui::BeginDisabled();
 
     ImGui::Text("Tone Mapping (HDR)");
     ImGui::Separator();
@@ -86,7 +100,8 @@ void renderControlPanel(bool hasHDR,
         toneMapDirty = true;
     }
 
-    if (!hasHDR) ImGui::EndDisabled();
+    if (toneMapDisabled) ImGui::EndDisabled();
+    if (hdrActive) ImGui::TextDisabled("HDR 输出开启：色调映射仅影响 SDR 保存");
 
     ImGui::Spacing();
     ImGui::Text("View");

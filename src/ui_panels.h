@@ -1,5 +1,6 @@
 #pragma once
 #include "imgui.h"
+#include "renderer.h"
 #include <functional>
 
 struct GLFWwindow;
@@ -10,12 +11,14 @@ namespace UIPanels {
 
 void renderMenuBar(GLFWwindow* window, const ImageData* img, float zoom, bool isHDR,
                    bool& fitToWindow, bool& showInfo, bool& showAbout,
+                   bool hdrSupported, bool hdrActive, HdrMode hdrMode,
                    std::function<void()> onOpen,
                    std::function<void()> onSave,
                    std::function<void()> onFitToWindow,
-                   std::function<void()> onResetView);
+                   std::function<void()> onResetView,
+                   std::function<void(bool)> onHdrToggle);
 
-void renderControlPanel(bool hasHDR,
+void renderControlPanel(bool hasHDR, bool hdrActive,
                         float& exposure, float& gamma,
                         int& toneMappingMode, bool& toneMapDirty,
                         bool& fitToWindow, float& zoom,

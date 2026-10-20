@@ -135,6 +135,11 @@ endif()
 # Always compile renderer_vk.cpp - it has #ifdef guards inside
 list(APPEND APP_SOURCES src/renderer_vk.cpp)
 
+# renderer_gl.cpp also has #ifdef guards, but only provide its stub in non-OpenGL builds
+if(NOT UHDR_VIEWER_OPENGL)
+    list(APPEND APP_SOURCES src/renderer_gl.cpp)
+endif()
+
 add_executable(${PROJECT_NAME} ${APP_SOURCES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE

@@ -39,6 +39,9 @@ int main(int argc, char* argv[]) {
             printf("  --height N      Window height\n");
             printf("  --help,   -h    Show this help\n");
             return 0;
+        } else if (argv[i][0] != '-' && config.initialImage.empty()) {
+            // First positional argument = image file to open at startup
+            config.initialImage = argv[i];
         }
     }
 

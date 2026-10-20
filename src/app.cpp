@@ -4,6 +4,7 @@
 #include "file_dialog.h"
 #include "renderer.h"
 #include "log.h"
+#include "colorspace.h"
 
 #include "imgui.h"
 #include "ultrahdr_api.h"
@@ -56,6 +57,10 @@ bool Application::init(const AppConfig& config) {
         glfwDestroyWindow(m_window); glfwTerminate(); return false;
     }
     glfwGetFramebufferSize(m_window, &m_displayWidth, &m_displayHeight);
+
+    if (!config.initialImage.empty()) {
+        loadImage(config.initialImage);
+    }
     return true;
 }
 
@@ -70,6 +75,15 @@ void Application::run() {
             m_toneMapDirty = false;
         }
 
+        // HDR output may have auto-fallen-back (e.g. window moved to an SDR display)
+        if (m_hdrOutputWanted && m_renderer->activeHdrMode() == HdrMode::Off) {
+            LOG_INFO("HDR output fell back to SDR");
+            m_hdrOutputWanted = false;
+            if (m_hdrTexture) { m_renderer->destroyTexture(m_hdrTexture); m_hdrTexture = nullptr; }
+            if (m_currentImage && !m_texture) m_texture = m_renderer->createTexture(*m_currentImage);
+            ImGui::StyleColorsDark();
+        }
+
         m_renderer->newFrame();
         renderUI();
         m_renderer->render();
@@ -78,6 +92,7 @@ void Application::run() {
 
 void Application::shutdown() {
     if (m_texture && m_renderer) { m_renderer->destroyTexture(m_texture); m_texture = nullptr; }
+    if (m_hdrTexture && m_renderer) { m_renderer->destroyTexture(m_hdrTexture); m_hdrTexture = nullptr; }
     if (m_renderer) { m_renderer->shutdown(); m_renderer.reset(); }
     if (m_window) { glfwDestroyWindow(m_window); m_window = nullptr; }
     glfwTerminate();
@@ -92,8 +107,68 @@ void Application::reapplyToneMapping() {
 
     applyToneMap(*m_hdrData, *m_currentImage, m_exposure, m_gamma, m_toneMappingMode);
 
-    if (m_texture && m_renderer) {
+    if (isHdrActive()) {
+        // HDR output displays HDRData directly; tone map only affects SDR save
+        if (m_hdrTexture) m_renderer->updateTextureHDR(m_hdrTexture, *m_hdrData);
+    } else if (m_texture && m_renderer) {
         m_renderer->updateTexture(m_texture, *m_currentImage);
+    }
+}
+
+// ============================================================
+// HDR output
+// ============================================================
+void Application::onHdrToggle(bool enable) {
+    if (enable == m_hdrOutputWanted) return;
+
+    if (enable) {
+        if (!m_hdrData || !m_renderer || !m_renderer->hdrOutputSupported()) return;
+        // Renderer contract: destroy app textures before setHdrOutput
+        if (m_texture) { m_renderer->destroyTexture(m_texture); m_texture = nullptr; }
+        if (m_hdrTexture) { m_renderer->destroyTexture(m_hdrTexture); m_hdrTexture = nullptr; }
+        if (!m_renderer->setHdrOutput(true)) {
+            // Roll back to SDR
+            if (m_currentImage) m_texture = m_renderer->createTexture(*m_currentImage);
+            return;
+        }
+        m_hdrOutputWanted = true;
+        m_hdrTexture = m_renderer->createTextureHDR(*m_hdrData);
+        bakeHdrStyle(m_renderer->activeHdrMode());
+    } else {
+        m_hdrOutputWanted = false;
+        if (m_hdrTexture) { m_renderer->destroyTexture(m_hdrTexture); m_hdrTexture = nullptr; }
+        m_renderer->setHdrOutput(false);
+        if (m_currentImage && !m_texture) m_texture = m_renderer->createTexture(*m_currentImage);
+        ImGui::StyleColorsDark();
+    }
+}
+
+void Application::bakeHdrStyle(HdrMode mode) {
+    ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    if (mode == HdrMode::ScRGB) {
+        // sRGB style colors -> linear scRGB (1.0 = 80 nits); UI white = 203 nits
+        for (int i = 0; i < ImGuiCol_COUNT; i++) {
+            ImVec4& c = style.Colors[i];
+            c.x = ColorSpace::srgbToLinear(c.x) * ColorSpace::SCRGB_SCALE;
+            c.y = ColorSpace::srgbToLinear(c.y) * ColorSpace::SCRGB_SCALE;
+            c.z = ColorSpace::srgbToLinear(c.z) * ColorSpace::SCRGB_SCALE;
+        }
+    } else if (mode == HdrMode::HDR10) {
+        // sRGB -> linear BT.709 (nits) -> BT.2020 -> PQ encode
+        for (int i = 0; i < ImGuiCol_COUNT; i++) {
+            ImVec4& c = style.Colors[i];
+            float r, g, b;
+            ColorSpace::bt709ToBt2020(
+                ColorSpace::srgbToLinear(c.x) * ColorSpace::HDR_WHITE_NITS,
+                ColorSpace::srgbToLinear(c.y) * ColorSpace::HDR_WHITE_NITS,
+                ColorSpace::srgbToLinear(c.z) * ColorSpace::HDR_WHITE_NITS,
+                r, g, b);
+            c.x = ColorSpace::pqEncode(r);
+            c.y = ColorSpace::pqEncode(g);
+            c.z = ColorSpace::pqEncode(b);
+        }
     }
 }
 
@@ -105,11 +180,14 @@ void Application::renderUI() {
 
     UIPanels::renderMenuBar(m_window, m_currentImage.get(), m_zoom, hasHDR,
                             m_fitToWindow, m_showInfo, m_showAbout,
+                            m_renderer->hdrOutputSupported(), isHdrActive(),
+                            m_renderer->activeHdrMode(),
                             [this]() { openImageFile(); },
                             [this]() { saveImageFile(); },
                             [this]() { fitToWindow(); },
-                            [this]() { resetView(); });
-    UIPanels::renderControlPanel(hasHDR,
+                            [this]() { resetView(); },
+                            [this](bool en) { onHdrToggle(en); });
+    UIPanels::renderControlPanel(hasHDR, isHdrActive(),
                                  m_exposure, m_gamma,
                                  m_toneMappingMode, m_toneMapDirty,
                                  m_fitToWindow, m_zoom,
@@ -136,9 +214,13 @@ void Application::renderImagePanel() {
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus |
         ImGuiWindowFlags_NoInputs;  // Don't consume input, we handle it manually
 
+    // HDR output: the image is drawn by the renderer's HDR quad BEFORE ImGui's draw
+    // data - the window's own background would cover it, so make it transparent.
+    if (isHdrActive()) flags |= ImGuiWindowFlags_NoBackground;
+
     if (!ImGui::Begin("##ImageView", nullptr, flags)) { ImGui::End(); return; }
 
-    if (m_texture && m_currentImage) {
+    if (m_currentImage && (m_texture || (isHdrActive() && m_hdrTexture))) {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         ImVec2 cpos = ImGui::GetCursorScreenPos();
         ImVec2 csz = ImGui::GetContentRegionAvail();
@@ -197,21 +279,30 @@ void Application::renderImagePanel() {
             }
         }
 
-        // Checkerboard
-        float gs = std::max(4.0f, 16.0f * m_zoom);
-        for (float y = ip.y; y < ie.y; y += gs)
-            for (float x = ip.x; x < ie.x; x += gs) {
-                int ix = (int)((x - ip.x) / gs), iy = (int)((y - ip.y) / gs);
-                ImU32 c = ((ix + iy) % 2 == 0) ? IM_COL32(80,80,80,255) : IM_COL32(120,120,120,255);
-                dl->AddRectFilled(ImVec2(x, y), ImVec2(std::min(x+gs,ie.x), std::min(y+gs,ie.y)), c);
-            }
+        if (isHdrActive() && m_hdrTexture) {
+            // HDR output: the renderer draws the image quad directly into the HDR
+            // swapchain (values > 1.0). Rect is in framebuffer pixels.
+            ImVec2 fbScale = ImGui::GetIO().DisplayFramebufferScale;
+            m_renderer->setHdrDrawRect(ip.x * fbScale.x, ip.y * fbScale.y,
+                                       ie.x * fbScale.x, ie.y * fbScale.y);
+        } else {
+            // Checkerboard
+            float gs = std::max(4.0f, 16.0f * m_zoom);
+            for (float y = ip.y; y < ie.y; y += gs)
+                for (float x = ip.x; x < ie.x; x += gs) {
+                    int ix = (int)((x - ip.x) / gs), iy = (int)((y - ip.y) / gs);
+                    ImU32 c = ((ix + iy) % 2 == 0) ? IM_COL32(80,80,80,255) : IM_COL32(120,120,120,255);
+                    dl->AddRectFilled(ImVec2(x, y), ImVec2(std::min(x+gs,ie.x), std::min(y+gs,ie.y)), c);
+                }
 
-        dl->AddImage((ImTextureID)(intptr_t)m_texture, ip, ie);
+            dl->AddImage((ImTextureID)(intptr_t)m_texture, ip, ie);
+        }
 
-        // Status bar at bottom
+        // Status bar at bottom (style color keeps it readable in HDR output mode)
         char buf[128];
         snprintf(buf, sizeof(buf), "  %dx%d  %.0f%%", m_currentImage->width, m_currentImage->height, m_zoom * 100.0f);
-        dl->AddText(ImVec2(cpos.x + 4, cpos.y + csz.y - 20), IM_COL32(200,200,200,200), buf);
+        ImU32 txtCol = isHdrActive() ? ImGui::GetColorU32(ImGuiCol_Text) : IM_COL32(200,200,200,200);
+        dl->AddText(ImVec2(cpos.x + 4, cpos.y + csz.y - 20), txtCol, buf);
     } else {
         ImVec2 a = ImGui::GetContentRegionAvail();
         ImGui::SetCursorPos(ImVec2(a.x * 0.5f - 80, a.y * 0.5f - 20));
@@ -289,6 +380,10 @@ void Application::loadImage(const std::string& path) {
         m_renderer->destroyTexture(m_texture);
         m_texture = nullptr;
     }
+    if (m_hdrTexture && m_renderer) {
+        m_renderer->destroyTexture(m_hdrTexture);
+        m_hdrTexture = nullptr;
+    }
     m_hdrData.reset();
     m_currentImage.reset();
     m_exifData = ExifData{};
@@ -315,8 +410,18 @@ void Application::loadImage(const std::string& path) {
         m_currentImage = std::move(image);
         m_hdrData = std::move(hdr);
         m_exifData = exif;
-        m_texture = m_renderer->createTexture(*m_currentImage);
-        if (!m_texture) {
+        if (isHdrActive()) {
+            if (m_hdrData) {
+                m_hdrTexture = m_renderer->createTextureHDR(*m_hdrData);
+            } else {
+                // SDR-only image while HDR output is active: revert to SDR output
+                onHdrToggle(false);
+                m_texture = m_renderer->createTexture(*m_currentImage);
+            }
+        } else {
+            m_texture = m_renderer->createTexture(*m_currentImage);
+        }
+        if (!m_texture && !m_hdrTexture) {
             LOG_ERROR("Failed to create texture");
             m_currentImage.reset();
             m_hdrData.reset();
@@ -359,6 +464,7 @@ void Application::keyCallback(GLFWwindow* w, int key, int, int action, int mods)
             case GLFW_KEY_F: a->m_fitToWindow = !a->m_fitToWindow; break;
             case GLFW_KEY_R: a->resetView(); break;
             case GLFW_KEY_I: a->m_showInfo = !a->m_showInfo; break;
+            case GLFW_KEY_H: a->onHdrToggle(!a->m_hdrOutputWanted); break;
             case GLFW_KEY_ESCAPE: glfwSetWindowShouldClose(w, GLFW_TRUE); break;
         }
     }

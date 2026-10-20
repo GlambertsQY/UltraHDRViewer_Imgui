@@ -7,11 +7,11 @@
     },
     "configurePresets": [
         {
-            "name": "vs2022-opengl",
-            "displayName": "Visual Studio 2022 (OpenGL)",
-            "description": "VS 2022 with OpenGL backend only",
-            "generator": "Visual Studio 17 2022",
-            "binaryDir": "${sourceDir}/out/build/vs2022-opengl",
+            "name": "vs2026-opengl",
+            "displayName": "Visual Studio 2026 (OpenGL)",
+            "description": "VS 2026 with OpenGL backend only",
+            "generator": "Visual Studio 18 2026",
+            "binaryDir": "${sourceDir}/out/build/vs2026-opengl",
             "cacheVariables": {
                 "UHDR_VIEWER_OPENGL": "ON",
                 "UHDR_VIEWER_VULKAN": "OFF"
@@ -23,11 +23,11 @@
             }
         },
         {
-            "name": "vs2022-vulkan",
-            "displayName": "Visual Studio 2022 (Vulkan)",
-            "description": "VS 2022 with Vulkan backend only",
-            "generator": "Visual Studio 17 2022",
-            "binaryDir": "${sourceDir}/out/build/vs2022-vulkan",
+            "name": "vs2026-vulkan",
+            "displayName": "Visual Studio 2026 (Vulkan)",
+            "description": "VS 2026 with Vulkan backend only",
+            "generator": "Visual Studio 18 2026",
+            "binaryDir": "${sourceDir}/out/build/vs2026-vulkan",
             "cacheVariables": {
                 "UHDR_VIEWER_OPENGL": "OFF",
                 "UHDR_VIEWER_VULKAN": "ON"
@@ -39,11 +39,11 @@
             }
         },
         {
-            "name": "vs2022-both",
-            "displayName": "Visual Studio 2022 (Both backends)",
-            "description": "VS 2022 with OpenGL + Vulkan",
-            "generator": "Visual Studio 17 2022",
-            "binaryDir": "${sourceDir}/out/build/vs2022-both",
+            "name": "vs2026-both",
+            "displayName": "Visual Studio 2026 (Both backends)",
+            "description": "VS 2026 with OpenGL + Vulkan",
+            "generator": "Visual Studio 18 2026",
+            "binaryDir": "${sourceDir}/out/build/vs2026-both",
             "cacheVariables": {
                 "UHDR_VIEWER_OPENGL": "ON",
                 "UHDR_VIEWER_VULKAN": "ON"
@@ -79,23 +79,23 @@
     ],
     "buildPresets": [
         {
-            "name": "vs2022-opengl-release",
-            "configurePreset": "vs2022-opengl",
+            "name": "vs2026-opengl-release",
+            "configurePreset": "vs2026-opengl",
             "configuration": "Release"
         },
         {
-            "name": "vs2022-opengl-debug",
-            "configurePreset": "vs2022-opengl",
+            "name": "vs2026-opengl-debug",
+            "configurePreset": "vs2026-opengl",
             "configuration": "Debug"
         },
         {
-            "name": "vs2022-vulkan-release",
-            "configurePreset": "vs2022-vulkan",
+            "name": "vs2026-vulkan-release",
+            "configurePreset": "vs2026-vulkan",
             "configuration": "Release"
         },
         {
-            "name": "vs2022-both-release",
-            "configurePreset": "vs2022-both",
+            "name": "vs2026-both-release",
+            "configurePreset": "vs2026-both",
             "configuration": "Release"
         },
         {

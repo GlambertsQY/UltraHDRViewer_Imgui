@@ -33,6 +33,18 @@ jobs:
         shell: cmd
         run: clone_deps.bat
 
+      - name: Diagnose dependencies
+        shell: pwsh
+        run: |
+          $f = 'deps/libultrahdr/CMakeLists.txt'
+          Write-Host "CMakeLists: exists=$(Test-Path $f) size=$((Get-Item $f -ErrorAction SilentlyContinue).Length)"
+          Write-Host "lib/src cpp count=$((Get-ChildItem deps/libultrahdr/lib/src/*.cpp -ErrorAction SilentlyContinue).Count)"
+          Write-Host "HEAD=$(git -C deps/libultrahdr rev-parse --short HEAD) tag=$(git -C deps/libultrahdr describe --tags)"
+          if (Test-Path $f) {
+            Select-String -Path $f -Pattern 'JPEG_PREBUILT_LIB AND|add_library\(\$\{UHDR_TARGET_NAME\}\)|add_library\(\$\{UHDR_CORE_LIB_NAME\}|add_subdirectory' |
+              ForEach-Object { Write-Host "$($_.LineNumber): $($_.Line.Trim())" }
+          }
+
       - name: Restore Vulkan SDK
         id: vulkan-sdk
         uses: actions/cache@v4
@@ -61,6 +73,17 @@ jobs:
           $env:PATH = "$($sdk.FullName)\Bin;$env:PATH"
           "VULKAN_SDK=$($sdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           cmake -S . -B out/build/ci -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Inspect build graph
+        if: always()
+        shell: pwsh
+        run: |
+          $ninja = 'out/build/ci/build.ninja'
+          if (-not (Test-Path $ninja)) { Write-Host 'build.ninja not generated'; exit 0 }
+          Write-Host "uhdr.lib references: $((Select-String -Path $ninja -Pattern 'uhdr\.lib' | Measure-Object).Count)"
+          Select-String -Path $ninja -Pattern 'build lib/uhdr|CXX_STATIC_LIBRARY_LINKER__uhdr|CXX_SHARED_LIBRARY_LINKER__uhdr' |
+            ForEach-Object { Write-Host $_.Line }
+          Write-Host "core rules: $((Select-String -Path $ninja -Pattern 'CMakeFiles/core\.dir' | Measure-Object).Count)"
 
       - name: Build
         run: cmake --build out/build/ci --parallel

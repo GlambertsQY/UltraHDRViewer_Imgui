@@ -58,6 +58,11 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
 endif()
 add_subdirectory(${UHDR_DIR} libultrahdr)
 
+if(NOT TARGET uhdr)
+    message(FATAL_ERROR "libultrahdr did not create the 'uhdr' target. "
+                        "Check that ${UHDR_DIR}/CMakeLists.txt is intact and not corrupted by clone_deps patches.")
+endif()
+
 # -------------------------------------------------------------------
 # Google Test (FetchContent)
 # -------------------------------------------------------------------

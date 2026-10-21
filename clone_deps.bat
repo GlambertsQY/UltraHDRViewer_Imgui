@@ -107,9 +107,16 @@ echo.
 :: --- Patch 3: libultrahdr (allow prebuilt JPEG for Android add_subdirectory builds) ---
 set UHDR_CMAKE=%DEPS_DIR%\libultrahdr\CMakeLists.txt
 if not exist "%UHDR_CMAKE%" goto :patch_uhdr_done
-powershell -NoProfile -Command "$f='%UHDR_CMAKE%'; $c=[IO.File]::ReadAllText($f); $c=[regex]::Replace($c,'\r\n','\n'); if($c -notmatch 'JPEG_PREBUILT_LIB AND JPEG_PREBUILT_INCLUDE'){ $nl=[char]10; $q=[char]34; $ins='# libjpeg-turbo'+$nl+'if(JPEG_PREBUILT_LIB AND JPEG_PREBUILT_INCLUDE)'+$nl+'  set(JPEG_FOUND TRUE)'+$nl+'  set(JPEG_LIBRARIES ${JPEG_PREBUILT_LIB})'+$nl+'  set(JPEG_INCLUDE_DIRS ${JPEG_PREBUILT_INCLUDE})'+$nl+'  message(STATUS '+$q+'Using prebuilt JPEG: ${JPEG_PREBUILT_LIB}'+$q+')'+$nl+'endif()'+$nl+$nl+'if(NOT UHDR_BUILD_DEPS AND NOT JPEG_PREBUILT_LIB)'; $c=$c.Replace('# libjpeg-turbo'+$nl+'if(NOT UHDR_BUILD_DEPS)',$ins); [IO.File]::WriteAllText($f,$c); Write-Host '  libultrahdr patched for prebuilt JPEG.' }"
+powershell -NoProfile -Command "$f='%UHDR_CMAKE%'; $c=[IO.File]::ReadAllText($f); if($c -match '\r\n'){ $nl=[char]13+[char]10 } else { $nl=[char]10 }; if($c -notmatch 'JPEG_PREBUILT_LIB AND JPEG_PREBUILT_INCLUDE'){ $q=[char]34; $ins='# libjpeg-turbo'+$nl+'if(JPEG_PREBUILT_LIB AND JPEG_PREBUILT_INCLUDE)'+$nl+'  set(JPEG_FOUND TRUE)'+$nl+'  set(JPEG_LIBRARIES ${JPEG_PREBUILT_LIB})'+$nl+'  set(JPEG_INCLUDE_DIRS ${JPEG_PREBUILT_INCLUDE})'+$nl+'  message(STATUS '+$q+'Using prebuilt JPEG: ${JPEG_PREBUILT_LIB}'+$q+')'+$nl+'endif()'+$nl+$nl+'if(NOT UHDR_BUILD_DEPS AND NOT JPEG_PREBUILT_LIB)'; $c=$c.Replace('# libjpeg-turbo'+$nl+'if(NOT UHDR_BUILD_DEPS)',$ins); [IO.File]::WriteAllText($f,$c); Write-Host '  libultrahdr patched for prebuilt JPEG.' }"
 echo   libultrahdr patched for prebuilt JPEG.
 :patch_uhdr_done
+echo.
+
+:: --- Patch 4: libultrahdr (copy libjpeg-turbo's missing installer template after ExternalProject clone) ---
+if not exist "%UHDR_CMAKE%" goto :patch_uhdr_turbojpeg_done
+powershell -NoProfile -Command "$f='%UHDR_CMAKE%'; $c=[IO.File]::ReadAllText($f); if($c -match '\r\n'){ $nl=[char]13+[char]10 } else { $nl=[char]10 }; if($c -notmatch 'copy_if_different'){ $old='        GIT_TAG 3.0.1'; $new='        GIT_TAG 3.0.1'+$nl+'        PATCH_COMMAND ${CMAKE_COMMAND} -E copy_if_different'+$nl+'                      ${JPEGTURBO_SOURCE_DIR}/win/vc/projectTargets-release.cmake.in'+$nl+'                      ${JPEGTURBO_SOURCE_DIR}/win/projectTargets-release.cmake.in'; $c=$c.Replace($old,$new); [IO.File]::WriteAllText($f,$c); Write-Host '  libultrahdr turbojpeg patch step added.' }"
+echo   libultrahdr turbojpeg patch step added.
+:patch_uhdr_turbojpeg_done
 echo.
 
 echo ========================================

@@ -1,13 +1,35 @@
 #include "hdr_types.h"
+#include "android_config.h"
 #include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <cmath>
 #include <algorithm>
 #include <vector>
-#include <jni.h>
 #include "ultrahdr_api.h"
 #include "stb_image.h"
+
+// IEEE 754 half (~5 bit exponent, 10 bit mantissa) -> float.
+static float halfToFloat(uint16_t h) {
+    uint32_t sign = (uint32_t)(h & 0x8000u) << 16;
+    uint32_t exp = (h >> 10) & 0x1Fu;
+    uint32_t mant = h & 0x3FFu;
+    if (exp == 0) {
+        if (mant == 0) {
+            uint32_t f = sign;
+            float r; std::memcpy(&r, &f, 4); return r;
+        }
+        // Subnormal: normalize into a float exponent.
+        while ((mant & 0x400u) == 0) { mant <<= 1; exp--; }
+        exp++;
+        mant &= ~0x400u;
+    } else if (exp == 31) {
+        uint32_t f = sign | 0x7F800000u | (mant << 13);
+        float r; std::memcpy(&r, &f, 4); return r;
+    }
+    uint32_t f = sign | ((exp - 15 + 127) << 23) | (mant << 13);
+    float r; std::memcpy(&r, &f, 4); return r;
+}
 
 
 static float reinhard(float x) { return x / (1.0f + x); }
@@ -74,6 +96,11 @@ bool loadImageFile(const std::string& filePath, ImageData& outSDR,
 
     if (outExif) *outExif = parseExif(data.data(), data.size());
 
+    if (!is_uhdr_image(data.data(), (int)data.size())) {
+        fprintf(stderr, "Not Ultra HDR: %s\n", filePath.c_str());
+        return false;
+    }
+
     uhdr_codec_private_t* dec=uhdr_create_decoder();
     if(!dec) return false;
 
@@ -86,12 +113,18 @@ bool loadImageFile(const std::string& filePath, ImageData& outSDR,
         uhdr_release_decoder(dec); return false;
     }
 
-    err = uhdr_dec_set_out_img_format(dec, UHDR_IMG_FMT_32bppRGBA8888);
+    // True HDR output: linear half-float with the gain map applied at full boost.
+    // (UHDR_CT_SRGB + RGBA8888 returns only the SDR rendition - no HDR data.)
+    err = uhdr_dec_set_out_img_format(dec, UHDR_IMG_FMT_64bppRGBAHalfFloat);
     if(err.error_code!=UHDR_CODEC_OK) {
         if(err.has_detail) fprintf(stderr,"set_out_format: %s\n",err.detail);
         uhdr_release_decoder(dec); return false;
     }
-    uhdr_dec_set_out_color_transfer(dec, UHDR_CT_SRGB);
+    err = uhdr_dec_set_out_color_transfer(dec, UHDR_CT_LINEAR);
+    if(err.error_code!=UHDR_CODEC_OK) {
+        if(err.has_detail) fprintf(stderr,"set_out_ct: %s\n",err.detail);
+        uhdr_release_decoder(dec); return false;
+    }
 
     err=uhdr_decode(dec);
     if(err.error_code!=UHDR_CODEC_OK) {
@@ -102,37 +135,45 @@ bool loadImageFile(const std::string& filePath, ImageData& outSDR,
     uhdr_raw_image_t* decoded=uhdr_get_decoded_image(dec);
     if(!decoded) { uhdr_release_decoder(dec); return false; }
 
-    int w=(int)decoded->w, h=(int)decoded->h;
+    if (decoded->fmt != UHDR_IMG_FMT_64bppRGBAHalfFloat) {
+        fprintf(stderr, "Unexpected output format: %d\n", (int)decoded->fmt);
+        uhdr_release_decoder(dec); return false;
+    }
 
-    uint8_t* src=(uint8_t*)decoded->planes[UHDR_PLANE_PACKED];
+    int w=(int)decoded->w, h=(int)decoded->h;
+    if (w <= 0 || h <= 0 || (int64_t)w * h > 100000000LL) {
+        fprintf(stderr, "Unsupported image size: %dx%d\n", w, h);
+        uhdr_release_decoder(dec); return false;
+    }
+
+    const uint16_t* src=(const uint16_t*)decoded->planes[UHDR_PLANE_PACKED];
     size_t srcStridePx=decoded->stride[UHDR_PLANE_PACKED];
 
     auto hdr=std::make_unique<HDRData>();
     hdr->width=w; hdr->height=h;
     hdr->pixels.resize((size_t)w*h*4);
 
-    outSDR.width=w; outSDR.height=h; outSDR.channels=4; outSDR.filePath=filePath;
-    outSDR.pixels.resize((size_t)w * h * 4);
-
+    float maxLinear = 0.0f;
     for(int y=0; y<h; y++) {
-        uint8_t* dstRow=outSDR.pixels.data()+(size_t)y*w*4;
         float* hdrRow=hdr->pixels.data()+(size_t)y*w*4;
-        uint8_t* srcRow=src+(size_t)y*srcStridePx*4;
-        for(int x=0; x<w; x++) {
-            dstRow[x*4+0]=srcRow[x*4+0];
-            dstRow[x*4+1]=srcRow[x*4+1];
-            dstRow[x*4+2]=srcRow[x*4+2];
-            dstRow[x*4+3]=srcRow[x*4+3];
-            hdrRow[x*4+0]=srcRow[x*4+0]/255.0f;
-            hdrRow[x*4+1]=srcRow[x*4+1]/255.0f;
-            hdrRow[x*4+2]=srcRow[x*4+2]/255.0f;
-            hdrRow[x*4+3]=1.0f;
+        const uint16_t* srcRow=src+(size_t)y*srcStridePx*4;
+        for(int x=0; x<w*4; x++) {
+            float v = halfToFloat(srcRow[x]);
+            hdrRow[x] = v;
+            if ((x & 3) != 3 && v > maxLinear) maxLinear = v;
         }
     }
 
     uhdr_release_decoder(dec);
 
+    hdr->maxNits = maxLinear * AndroidConfig::HDR_WHITE_NITS;
     outHDR=std::move(hdr);
+
+    // Display SDR is tone mapped from the true HDR data with default parameters.
+    applyToneMap(*outHDR, outSDR,
+                 AndroidConfig::DEFAULT_EXPOSURE, AndroidConfig::DEFAULT_GAMMA, 0);
+    outSDR.filePath=filePath;
+
     return true;
 }
 

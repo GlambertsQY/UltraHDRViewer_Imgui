@@ -17,6 +17,8 @@ struct HDRData {
     std::vector<float> pixels;
     int width = 0;
     int height = 0;
+    // Peak linear value of the decoded image, converted to nits (1.0 = 203 nits).
+    float maxNits = 0.0f;
 };
 
 struct ExifData {

@@ -11,18 +11,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_definitions(-DANDROID -DSDL_MAIN_HANDLED)
-add_compile_options(-Wall -Wextra)
+# libjpeg-turbo 3.0.1 and libultrahdr use old cmake_minimum_required values.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
-# -------------------- SDL2 --------------------
-set(SDL2_DIR ${DEPS_DIR}/sdl2)
-set(SDL2_INCLUDE_DIRS ${SDL2_DIR}/include)
-set(SDL2_STATIC ON CACHE BOOL "" FORCE)
-set(SDL2_TESTS OFF CACHE BOOL "")
-set(SDL2_INSTALL OFF CACHE BOOL "")
-set(SDL2_GAME_CONTROLLER OFF CACHE BOOL "")
-set(SDL2_HIDAPI OFF CACHE BOOL "")
-add_subdirectory(${SDL2_DIR} ${CMAKE_CURRENT_BINARY_DIR}/sdl2-build)
+add_definitions(-DANDROID)
 
 # -------------------- libjpeg-turbo (add_subdirectory for Android) --------------------
 set(TURBOJPEG_INCLUDE ${DEPS_DIR}/turbojpeg)
@@ -38,7 +30,6 @@ set(CMAKE_INSTALL_DOCDIR "doc" CACHE PATH "")
 set(CMAKE_INSTALL_MANDIR "man" CACHE PATH "")
 set(CMAKE_INSTALL_LIBDIR "lib" CACHE PATH "")
 add_subdirectory(${DEPS_DIR}/turbojpeg ${CMAKE_CURRENT_BINARY_DIR}/turbojpeg-build)
-set(TURBOJPEG_LIB ${CMAKE_CURRENT_BINARY_DIR}/turbojpeg-build/${CMAKE_STATIC_LIBRARY_PREFIX}jpeg${CMAKE_STATIC_LIBRARY_SUFFIX})
 
 # -------------------- libultrahdr --------------------
 set(UHDR_DIR ${DEPS_DIR}/libultrahdr)
@@ -63,21 +54,20 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui_draw.cpp
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
 add_library(imgui_lib STATIC EXCLUDE_FROM_ALL ${IMGUI_SOURCES})
 target_include_directories(imgui_lib PUBLIC
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
-    ${SDL2_DIR}/include
 )
-target_link_libraries(imgui_lib PUBLIC SDL2)
-target_compile_definitions(imgui_lib PUBLIC UHDR_VIEWER_OPENGL_ENABLED IMGUI_IMPL_OPENGL_ES3)
+target_compile_definitions(imgui_lib PUBLIC IMGUI_IMPL_OPENGL_ES3)
 
 # -------------------- Application sources --------------------
 set(APP_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/egl_context.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/hdr_gles.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/stb_image_impl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image_loader_android.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/exif_parser_android.cpp
@@ -87,7 +77,6 @@ add_library(${CMAKE_PROJECT_NAME} SHARED ${APP_SOURCES})
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${SDL2_DIR}/include
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${UHDR_DIR}
@@ -98,7 +87,6 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     imgui_lib
-    SDL2
     uhdr
     android
     log
@@ -110,56 +98,11 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     UHDR_VIEWER_OPENGL_ENABLED
 )
-
-# Define the nativeOnCreate etc. JNI functions
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -Wall -Wextra)
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -fno-rtti -fno-exceptions)
 
-# -------------------- Unit Tests (host-only, not for device) --------------------
-# Separate test target without -fno-exceptions (required by GTest)
-set(TEST_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/tonemap_android_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/exif_android_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/image_loader_android.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/exif_parser_android.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/stb_image_impl.cpp
+# 16 KB page-size support (NDK r28+ already aligns by default; keep explicit).
+target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
+    "-Wl,-z,max-page-size=16384"
+    "-Wl,-z,common-page-size=16384"
 )
-
-# Use GTest from the desktop build's FetchContent
-# Since this CMake is invoked from Android Gradle, we need a fallback
-# For now, just define the target structure — actual GTest integration 
-# will work when built from desktop CMake or with proper FetchContent
-enable_testing()
-include(FetchContent)
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.14.0
-)
-set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
-set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
-
-add_executable(uhdrviewer_android_test ${TEST_SOURCES})
-
-target_include_directories(uhdrviewer_android_test PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${IMGUI_DIR}
-    ${UHDR_DIR}
-    ${DEPS_DIR}
-    ${DEPS_DIR}/turbojpeg
-    ${CMAKE_CURRENT_BINARY_DIR}/turbojpeg-build
-)
-
-target_link_libraries(uhdrviewer_android_test PRIVATE
-    GTest::gtest_main
-    uhdr
-)
-
-# Note: This target does NOT set -fno-exceptions (GTest requires exceptions)
-# gtest_discover_tests is disabled here because it tries to run ARM binaries
-# on the build host. Run tests manually: ctest --test-dir <build-dir> -R Android
-# To re-enable discovery for host-native builds, wrap in:
-#   if(NOT ANDROID)
-#     include(GoogleTest)
-#     gtest_discover_tests(uhdrviewer_android_test)
-#   endif()

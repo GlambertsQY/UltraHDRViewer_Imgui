@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <algorithm>
 #include <fstream>
+#include <filesystem>
 #include "hdr_types.h"
 
 class ToneMapAndroidTest : public ::testing::Test {
@@ -101,7 +102,17 @@ TEST_F(ToneMapAndroidTest, GammaChangesOutput) {
 TEST_F(ToneMapAndroidTest, RegressionMatchBaseline) {
     uint8_t out[kN * 4];
     toneMapImage(hdr_, out, kW, kH, 1.0f, 1.0f, 0);
-    std::ifstream baseline("tests/baseline/android_reinhard.bin", std::ios::binary);
+    namespace fs = std::filesystem;
+    fs::path dir = fs::current_path();
+    fs::path baselinePath;
+    for (int i = 0; i < 6; ++i) {
+        fs::path candidate = dir / "tests" / "baseline" / "android_reinhard.bin";
+        std::error_code ec;
+        if (fs::exists(candidate, ec)) { baselinePath = candidate; break; }
+        if (!dir.has_parent_path()) break;
+        dir = dir.parent_path();
+    }
+    std::ifstream baseline(baselinePath, std::ios::binary);
     ASSERT_TRUE(baseline.is_open()) << "Baseline file not found";
     uint8_t expected[kN * 4];
     baseline.read(reinterpret_cast<char*>(expected), kN * 4);

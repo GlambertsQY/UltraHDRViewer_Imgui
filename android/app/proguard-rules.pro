@@ -1,9 +1,5 @@
-# Add project specific ProGuard rules here.
-
-# libultrahdr
--keep class com.google.media.codecs.ultrahdr.** { *; }
-
-# Keep native methods
+# Native entry points are resolved by name from Java.
 -keepclasseswithmembernames class * {
     native <methods>;
 }
+-keep class com.uhdrviewer.MainActivity { *; }

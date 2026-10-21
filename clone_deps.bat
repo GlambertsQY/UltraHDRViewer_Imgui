@@ -118,6 +118,10 @@ if exist "%TURBOJPEG%\CMakeLists.txt" (
 set TURBOJPEG_DEPS=%DEPS_DIR%\turbojpeg
 
 if exist "%TURBOJPEG_DEPS%\CMakeLists.txt" (
+    :: Allow add_subdirectory() integration (upstream guards against it)
+    powershell -Command "$f = '%TURBOJPEG_DEPS%\CMakeLists.txt'; $c = Get-Content $f -Raw; $c = $c -replace 'if\(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR\)', 'if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND NOT TURBOJPEG_IS_SUBPROJECT)'; Set-Content -Path $f -Value $c"
+    Write-Host '  deps/turbojpeg patched to allow add_subdirectory().'
+
     :: Add subproject guard after cmake_minimum_required
     powershell -Command ^
         "$c = Get-Content '%TURBOJPEG_DEPS%\CMakeLists.txt' -Raw; " ^
@@ -151,8 +155,21 @@ if exist "%TURBOJPEG_DEPS%\CMakeLists.txt" (
 )
 echo.
 
+:: --- Patch 3: libultrahdr (allow prebuilt JPEG for Android add_subdirectory builds) ---
+set UHDR_CMAKE=%DEPS_DIR%\libultrahdr\CMakeLists.txt
+if exist "%UHDR_CMAKE%" (
+    powershell -Command ^
+        "$f = '%UHDR_CMAKE%'; $c = Get-Content $f -Raw; " ^
+        "if ($c -notmatch 'JPEG_PREBUILT_LIB AND JPEG_PREBUILT_INCLUDE') { " ^
+        "  $patched = $c -replace '# libjpeg-turbo\r?\nif\(NOT UHDR_BUILD_DEPS\)', \"# libjpeg-turbo`r`nif(JPEG_PREBUILT_LIB AND JPEG_PREBUILT_INCLUDE)`r`n  set(JPEG_FOUND TRUE)`r`n  set(JPEG_LIBRARIES `${JPEG_PREBUILT_LIB})`r`n  set(JPEG_INCLUDE_DIRS `${JPEG_PREBUILT_INCLUDE})`r`n  message(STATUS `\"Using prebuilt JPEG: `${JPEG_PREBUILT_LIB}`\")`r`nendif()`r`n`r`nif(NOT UHDR_BUILD_DEPS AND NOT JPEG_PREBUILT_LIB)\"; " ^
+        "  Set-Content -Path $f -Value $patched; Write-Host '  libultrahdr patched for prebuilt JPEG.' }"
+    echo   libultrahdr patched for prebuilt JPEG.
+) else (
+    echo   libultrahdr not found, skipping.
+)
+echo.
+
 echo ========================================
-echo  All dependencies ready!
 echo ========================================
 echo.
 echo To build for Windows with Ninja (recommended):

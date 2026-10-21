@@ -1,10 +1,11 @@
 plugins {
-    id 'com.android.application' version '7.4.2' apply false
+    id 'com.android.application' version '9.1.1' apply false
 }
 
 ext {
-    compileSdkVersion = 34
+    compileSdkVersion = 37
     minSdkVersion = 24
-    targetSdkVersion = 34
+    targetSdkVersion = 37
+    ndkVersion = "28.2.13676358"
     depsPath = rootProject.projectDir.parent + "/deps"
 }

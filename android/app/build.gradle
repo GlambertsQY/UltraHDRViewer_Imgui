@@ -5,20 +5,20 @@ plugins {
 android {
     namespace 'com.uhdrviewer'
     compileSdk rootProject.ext.compileSdkVersion
-    ndkVersion "23.1.7779620"
+    ndkVersion rootProject.ext.ndkVersion
 
     defaultConfig {
         applicationId "com.uhdrviewer"
         minSdk rootProject.ext.minSdkVersion
         targetSdk rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0.0"
+        versionName "1.1.0"
 
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17"
                 arguments "-DANDROID_STL=c++_shared", "-DDEPS_DIR=" + rootProject.ext.depsPath
-                abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+                abiFilters 'arm64-v8a', 'x86_64'
             }
         }
     }
@@ -34,16 +34,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
-    }
-
-    sourceSets {
-        main {
-            java {
-                srcDirs = ['app/src/main/java']
-            }
-        }
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     externalNativeBuild {

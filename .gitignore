@@ -74,3 +74,6 @@ desktop.ini
 # Runtime artifacts
 imgui.ini
 captures/
+
+# Local Android toolchain installed by android/setup_android_sdk.ps1
+.tools/

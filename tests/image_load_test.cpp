@@ -5,6 +5,10 @@
 #include <memory>
 
 TEST(ImageLoadTest, LoadUltraHDR) {
+    if (!std::ifstream("MVIMG_20251123_200209.jpg").good()) {
+        GTEST_SKIP() << "MVIMG_20251123_200209.jpg not found (private sample image)";
+    }
+
     ImageData img;
     std::unique_ptr<HDRData> hdr;
     bool ok = loadImageFile("MVIMG_20251123_200209.jpg", img, hdr);

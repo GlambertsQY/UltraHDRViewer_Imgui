@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows desktop (OpenGL + Vulkan)
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Restore dependencies
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-windows-${{ hashFiles('clone_deps.bat', 'clone_deps.sh') }}
+
+      - name: Clone dependencies
+        shell: cmd
+        run: clone_deps.bat
+
+      - name: Restore Vulkan SDK
+        id: vulkan-sdk
+        uses: actions/cache@v4
+        with:
+          path: C:\VulkanSDK
+          key: vulkan-sdk-windows-1.4.363
+
+      - name: Install Vulkan SDK
+        if: steps.vulkan-sdk.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: choco install vulkan-sdk --version=1.4.363 -y --no-progress
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          $sdk = Get-ChildItem C:\VulkanSDK -Directory |
+            Sort-Object { [version]$_.Name } -Descending |
+            Select-Object -First 1
+          if (-not $sdk) { throw 'Vulkan SDK not found under C:\VulkanSDK' }
+          $env:VULKAN_SDK = $sdk.FullName
+          $env:PATH = "$($sdk.FullName)\Bin;$env:PATH"
+          "VULKAN_SDK=$($sdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          cmake -S . -B out/build/ci -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build out/build/ci --parallel
+
+      - name: Run tests
+        run: ctest --test-dir out/build/ci --output-on-failure
+
+  android:
+    name: Android debug APK
+    runs-on: windows-2025
+    timeout-minutes: 60
+    env:
+      NDK_VERSION: 28.2.13676358
+      ANDROID_CMAKE_VERSION: 3.22.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Restore dependencies
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-windows-${{ hashFiles('clone_deps.bat', 'clone_deps.sh') }}
+
+      - name: Clone dependencies
+        shell: cmd
+        run: clone_deps.bat
+
+      - name: Restore Android NDK
+        uses: actions/cache@v4
+        with:
+          path: C:\Android\android-sdk\ndk\28.2.13676358
+          key: ndk-windows-28.2.13676358
+
+      - name: Install Android NDK and CMake
+        shell: pwsh
+        run: |
+          $sdkManager = Join-Path $env:ANDROID_HOME 'cmdline-tools\latest\bin\sdkmanager.bat'
+          if (-not (Test-Path $sdkManager)) { throw "sdkmanager not found: $sdkManager" }
+          & $sdkManager --install "ndk;$env:NDK_VERSION" "cmake;$env:ANDROID_CMAKE_VERSION"
+          if ($LASTEXITCODE -ne 0) { throw "sdkmanager failed with exit code $LASTEXITCODE" }
+
+      - name: Restore Gradle caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-windows-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/build.gradle', 'android/app/build.gradle') }}
+
+      - name: Build debug APK
+        working-directory: android
+        shell: pwsh
+        run: |
+          $env:JAVA_HOME = $env:JAVA_HOME_17_X64
+          .\gradlew.bat assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK
+        shell: pwsh
+        run: |
+          $apk = 'android\app\build\outputs\apk\debug\app-debug.apk'
+          if (-not (Test-Path $apk)) { throw "APK was not produced: $apk" }
+          Get-Item $apk | Select-Object FullName, Length | Format-List

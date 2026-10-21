@@ -6,7 +6,9 @@
 TEST(ExifParserTest, ParseUltraHDRImage) {
     // Read test image from project root
     std::ifstream f("MVIMG_20251123_200209.jpg", std::ios::binary | std::ios::ate);
-    ASSERT_TRUE(f.is_open()) << "Test image not found in working directory";
+    if (!f.is_open()) {
+        GTEST_SKIP() << "MVIMG_20251123_200209.jpg not found (private sample image)";
+    }
     auto sz = f.tellg();
     f.seekg(0);
     std::vector<uint8_t> data(static_cast<size_t>(sz));

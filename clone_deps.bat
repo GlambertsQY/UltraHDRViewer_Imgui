@@ -94,79 +94,22 @@ echo.
 :: --- Patch turbojpeg CMakeLists.txt files ---
 echo [7/7] Patching turbojpeg CMakeLists.txt...
 
-:: --- Patch 1: libultrahdr/third_party/turbojpeg (for ExternalProject and Windows builds) ---
-set TURBOJPEG=%DEPS_DIR%\libultrahdr\third_party\turbojpeg
-
-if exist "%TURBOJPEG%\CMakeLists.txt" (
-    :: Comment out BuildPackages.cmake include
-    powershell -Command "(Get-Content '%TURBOJPEG%\CMakeLists.txt') -replace '^(include\(cmakescripts/BuildPackages.cmake\))$', '# Patched by clone_deps.bat: skip BuildPackages (needs missing NSIS installer templates)' | Set-Content '%TURBOJPEG%\CMakeLists.txt'"
-
-    :: Comment out install() commands that depend on BuildPackages.cmake output
-    powershell -Command "$c = Get-Content '%TURBOJPEG%\CMakeLists.txt' -Raw; $c = $c -replace '(?m)^(install\(FILES \$\{CMAKE_CURRENT_BINARY_DIR\}/pkgscripts/libjpeg\.pc$)', '# Patched: $1'; $c = $c -replace '(?s)(install\(FILES.*?\$\{CMAKE_CURRENT_BINARY_DIR\}/pkgscripts/libturbojpeg\.pc.*?\))', '# Patched: $1'; $c = $c -replace '(?s)(install\(FILES\s*\$\{CMAKE_CURRENT_BINARY_DIR\}/pkgscripts/\$\{CMAKE_PROJECT_NAME\}Config\.cmake.*?\))', '# Patched: $1'; $c = $c -replace '(?m)^(install\(EXPORT \$\{CMAKE_PROJECT_NAME\}Targets.*?\))', '# Patched: $1'; Set-Content '%TURBOJPEG%\CMakeLists.txt' -Value $c"
-
-    :: Create missing template file for BuildPackages.cmake (win/projectTargets-release.cmake.in)
-    if not exist "%TURBOJPEG%\win\projectTargets-release.cmake.in" (
-        copy "%TURBOJPEG%\win\vc\projectTargets-release.cmake.in" "%TURBOJPEG%\win\projectTargets-release.cmake.in" >nul
-        echo   Created missing win/projectTargets-release.cmake.in
-    )
-    echo   libultrahdr/third_party/turbojpeg patched.
-) else (
-    echo   libultrahdr/third_party/turbojpeg not found, skipping.
-)
-
 :: --- Patch 2: deps/turbojpeg (for Android add_subdirectory builds) ---
 set TURBOJPEG_DEPS=%DEPS_DIR%\turbojpeg
 
-if exist "%TURBOJPEG_DEPS%\CMakeLists.txt" (
-    :: Allow add_subdirectory() integration (upstream guards against it)
-    powershell -Command "$f = '%TURBOJPEG_DEPS%\CMakeLists.txt'; $c = Get-Content $f -Raw; $c = $c -replace 'if\(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR\)', 'if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND NOT TURBOJPEG_IS_SUBPROJECT)'; Set-Content -Path $f -Value $c"
-    Write-Host '  deps/turbojpeg patched to allow add_subdirectory().'
-
-    :: Add subproject guard after cmake_minimum_required
-    powershell -Command ^
-        "$c = Get-Content '%TURBOJPEG_DEPS%\CMakeLists.txt' -Raw; " ^
-        "$guard = \"`nif(TURBOJPEG_IS_SUBPROJECT)`n" ^
-            "    set(CMAKE_INSTALL_DOCDIR `\"doc`\" CACHE PATH `\"`\")`n" ^
-            "    set(CMAKE_INSTALL_INCLUDEDIR `\"include`\" CACHE PATH `\"`\")`n" ^
-            "    set(_TJ_SKIP_INSTALL ON)`n" ^
-            "endif()`n`n\"; " ^
-        "$idx = $c.IndexOf('if(POLICY CMP0065)'); " ^
-        "if ($idx -gt 0 -and $c.IndexOf('TURBOJPEG_IS_SUBPROJECT') -lt 0) { " ^
-        "    $c = $c.Substring(0, $idx) + $guard + $c.Substring($idx); " ^
-        "    Set-Content -Path '%TURBOJPEG_DEPS%\CMakeLists.txt' -Value $c; " ^
-        "    Write-Host '  Added TURBOJPEG_IS_SUBPROJECT guard.' " ^
-        "}"
-
-    :: Wrap install blocks with _TJ_SKIP_INSTALL
-    powershell -Command ^
-        "$c = Get-Content '%TURBOJPEG_DEPS%\CMakeLists.txt' -Raw; " ^
-        "$c = $c -replace '(?m)^(install\(TARGETS rdjpgcom wrjpgcom RUNTIME DESTINATION \$\{CMAKE_INSTALL_BINDIR\}\))', \"`n`$1\"; " ^
-        "$c = $c -replace '^(install\(FILES \$\{CMAKE_CURRENT_SOURCE_DIR\}/README\.ijg)', \"if(NOT _TJ_SKIP_INSTALL)`n`$1\"; " ^
-        "$c = $c -replace '(?m)^(install\(FILES \$\{CMAKE_CURRENT_BINARY_DIR\}/jconfig\.h)', \"endif() # _TJ_SKIP_INSTALL`n`n`$1\"; " _
-        "-Replace '(?m)^(include\(cmakescripts/BuildPackages.cmake\))', \"`n`$1`n`nif(NOT _TJ_SKIP_INSTALL)\"; " _
-        "-Replace '(?m)^(add_custom_target\(uninstall)', \"endif() # _TJ_SKIP_INSTALL`n`n`$1\"; " _
-        "-Replace '^(configure_file\(\"\${CMAKE_CURRENT_SOURCE_DIR}/cmakescripts/cmake_uninstall)', \"`n`$1\"; " _
-        "Set-Content -Path '%TURBOJPEG_DEPS%\CMakeLists.txt' -Value $c; " _
-        "Write-Host '  deps/turbojpeg patched for Android.'"
-
-    echo   deps/turbojpeg patched.
-) else (
-    echo   deps/turbojpeg not found, skipping.
-)
+if not exist "%TURBOJPEG_DEPS%\CMakeLists.txt" goto :patch_turbojpeg_done
+:: Allow add_subdirectory() integration (upstream guards against it)
+powershell -NoProfile -Command "$f='%TURBOJPEG_DEPS%\CMakeLists.txt'; $c=[IO.File]::ReadAllText($f); if($c -notmatch 'TURBOJPEG_IS_SUBPROJECT'){ $c=$c.Replace('if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)', 'if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND NOT TURBOJPEG_IS_SUBPROJECT)'); [IO.File]::WriteAllText($f,$c); Write-Host '  deps/turbojpeg patched to allow add_subdirectory().' }"
+echo   deps/turbojpeg patched.
+:patch_turbojpeg_done
 echo.
 
 :: --- Patch 3: libultrahdr (allow prebuilt JPEG for Android add_subdirectory builds) ---
 set UHDR_CMAKE=%DEPS_DIR%\libultrahdr\CMakeLists.txt
-if exist "%UHDR_CMAKE%" (
-    powershell -Command ^
-        "$f = '%UHDR_CMAKE%'; $c = Get-Content $f -Raw; " ^
-        "if ($c -notmatch 'JPEG_PREBUILT_LIB AND JPEG_PREBUILT_INCLUDE') { " ^
-        "  $patched = $c -replace '# libjpeg-turbo\r?\nif\(NOT UHDR_BUILD_DEPS\)', \"# libjpeg-turbo`r`nif(JPEG_PREBUILT_LIB AND JPEG_PREBUILT_INCLUDE)`r`n  set(JPEG_FOUND TRUE)`r`n  set(JPEG_LIBRARIES `${JPEG_PREBUILT_LIB})`r`n  set(JPEG_INCLUDE_DIRS `${JPEG_PREBUILT_INCLUDE})`r`n  message(STATUS `\"Using prebuilt JPEG: `${JPEG_PREBUILT_LIB}`\")`r`nendif()`r`n`r`nif(NOT UHDR_BUILD_DEPS AND NOT JPEG_PREBUILT_LIB)\"; " ^
-        "  Set-Content -Path $f -Value $patched; Write-Host '  libultrahdr patched for prebuilt JPEG.' }"
-    echo   libultrahdr patched for prebuilt JPEG.
-) else (
-    echo   libultrahdr not found, skipping.
-)
+if not exist "%UHDR_CMAKE%" goto :patch_uhdr_done
+powershell -NoProfile -Command "$f='%UHDR_CMAKE%'; $c=[IO.File]::ReadAllText($f); $c=[regex]::Replace($c,'\r\n','\n'); if($c -notmatch 'JPEG_PREBUILT_LIB AND JPEG_PREBUILT_INCLUDE'){ $nl=[char]10; $q=[char]34; $ins='# libjpeg-turbo'+$nl+'if(JPEG_PREBUILT_LIB AND JPEG_PREBUILT_INCLUDE)'+$nl+'  set(JPEG_FOUND TRUE)'+$nl+'  set(JPEG_LIBRARIES ${JPEG_PREBUILT_LIB})'+$nl+'  set(JPEG_INCLUDE_DIRS ${JPEG_PREBUILT_INCLUDE})'+$nl+'  message(STATUS '+$q+'Using prebuilt JPEG: ${JPEG_PREBUILT_LIB}'+$q+')'+$nl+'endif()'+$nl+$nl+'if(NOT UHDR_BUILD_DEPS AND NOT JPEG_PREBUILT_LIB)'; $c=$c.Replace('# libjpeg-turbo'+$nl+'if(NOT UHDR_BUILD_DEPS)',$ins); [IO.File]::WriteAllText($f,$c); Write-Host '  libultrahdr patched for prebuilt JPEG.' }"
+echo   libultrahdr patched for prebuilt JPEG.
+:patch_uhdr_done
 echo.
 
 echo ========================================
@@ -180,4 +123,4 @@ echo To build for Android:
 echo   cd android
 echo   gradlew assembleDebug
 echo.
-pause
+if not defined CI pause

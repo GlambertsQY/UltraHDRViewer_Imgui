@@ -119,6 +119,13 @@ echo   libultrahdr turbojpeg patch step added.
 :patch_uhdr_turbojpeg_done
 echo.
 
+:: --- Patch 5: libultrahdr (forward CMAKE_POLICY_VERSION_MINIMUM to the turbojpeg sub-build on CMake 4.x) ---
+if not exist "%UHDR_CMAKE%" goto :patch_uhdr_cmake4_done
+powershell -NoProfile -Command "$f='%UHDR_CMAKE%'; $c=[IO.File]::ReadAllText($f); if($c -match '\r\n'){ $nl=[char]13+[char]10 } else { $nl=[char]10 }; if($c -notmatch 'CMAKE_POLICY_VERSION_MINIMUM'){ $old='set(UHDR_CMAKE_ARGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER})'; $new=$old+$nl+'# CMake 4.x compat: turbojpeg ExternalProject uses old cmake_minimum_required'+$nl+'if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)'+$nl+'  list(APPEND UHDR_CMAKE_ARGS -DCMAKE_POLICY_VERSION_MINIMUM=3.5)'+$nl+'endif()'; $c=$c.Replace($old,$new); [IO.File]::WriteAllText($f,$c); Write-Host '  libultrahdr patched for CMake 4.x.' }"
+echo   libultrahdr patched for CMake 4.x.
+:patch_uhdr_cmake4_done
+echo.
+
 echo ========================================
 echo ========================================
 echo.

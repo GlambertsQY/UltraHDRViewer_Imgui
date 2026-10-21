@@ -66,6 +66,7 @@ desktop.ini
 *.png
 *.bmp
 !deps/libultrahdr/tests/data/*.jpg
+!docs/images/*.jpg
 
 # AI agent working dirs
 .omo/

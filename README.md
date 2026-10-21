@@ -1,20 +1,92 @@
-# Ultra HDR Viewer
+<p align="center">
+  <img src="docs/images/banner.svg" alt="Ultra HDR Viewer" width="100%">
+</p>
 
-An Ultra HDR image viewer built with [Dear ImGui](https://github.com/ocornut/imgui) and [libultrahdr](https://github.com/google/libultrahdr).
+<p align="center">
+  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Android-4f9dff">
+  <img alt="C++" src="https://img.shields.io/badge/C%2B%2B-17-blue">
+  <img alt="Android" src="https://img.shields.io/badge/Android-API%2037-3ddc84">
+  <img alt="HDR" src="https://img.shields.io/badge/output-scRGB%20%7C%20HDR10-f2c46d">
+</p>
 
-## Features
+A true-HDR image viewer built with [Dear ImGui](https://github.com/ocornut/imgui) and
+[libultrahdr](https://github.com/google/libultrahdr). It decodes the Ultra HDR gain map at full
+boost, keeps highlights above SDR white, and can present them directly on HDR-capable displays.
 
-- Decode and display Ultra HDR images (.jpg/.uhdr)
-- HDR and SDR image support
-- Three tone mapping algorithms: Reinhard / ACES Filmic / Uncharted 2
-- Exposure and gamma adjustment
-- HDR display output: scRGB / HDR10 (desktop Vulkan) and HDR10/PQ (Android EGL)
-- Image zoom, pan, fit-to-window (mouse on desktop, touch gestures on Android)
-- Drag-and-drop file opening (desktop)
-- OpenGL and Vulkan graphics backends (desktop)
-- Native Win32 file dialog (desktop)
-- EXIF metadata display (camera info, exposure, GPS coordinates)
-- Android 17 (API 37) support with true HDR decode and HDR10 direct output
+---
+
+## Screenshots
+
+| SDR view (tone-mapped) | HDR10 direct output |
+|---|---|
+| <img src="docs/images/android-sdr.jpg" width="360" alt="Android SDR view"> | <img src="docs/images/android-hdr.jpg" width="360" alt="Android HDR10 view"> |
+| 3072×4096 image, Reinhard tone mapping, HDR output off | Ultra HDR test image, HDR10 BT.2020/PQ, peak 1635 nits |
+
+> Screenshots are captured on an Android 17 phone with **generated gradient test images** — no personal photos.
+> The HDR capture reads the raw PQ buffer, so its brightness is not representative of the physical display.
+
+## Highlights
+
+| Area | What you get |
+|---|---|
+| **Decode** | `UHDR_IMG_FMT_64bppRGBAHalfFloat` + `UHDR_CT_LINEAR`, gain map applied at full boost |
+| **HDR data** | Linear BT.709 float RGBA, `1.0 = 203 nits`, real highlights above SDR white |
+| **Desktop output** | scRGB (FP16) preferred, HDR10 (PQ/BT.2020) fallback, Vulkan only |
+| **Android output** | 10-bit EGL surface, `EGL_GL_COLORSPACE_BT2020_PQ_EXT`, RGBA16F texture, PQ shader |
+| **Tone mapping** | Reinhard / ACES Filmic / Uncharted 2, exposure and gamma controls |
+| **UI** | Dear ImGui; on Android the UI is composited from an SDR buffer into PQ to keep its colors |
+| **Input** | Zoom, pan, fit-to-window; mouse on desktop, touch gestures on Android |
+| **Files** | Drag-and-drop / native dialog on desktop; SAF picker and `ACTION_VIEW`/`ACTION_SEND` on Android |
+| **Metadata** | EXIF camera info plus SMPTE 2086 / CTA-861.3 HDR metadata on Android |
+
+## Supported platforms
+
+| Platform | Renderer | HDR output | Notes |
+|---|---|---|---|
+| Windows | OpenGL 3.0 | — | SDR-only by design (WGL has no HDR swapchain) |
+| Windows | Vulkan | scRGB / HDR10 | Preferred for HDR displays |
+| Android | EGL + OpenGL ES 3 | HDR10 (BT.2020/PQ) | Requires an HDR10 display and a device/driver exposing the EGL PQ extension |
+
+## How it works
+
+### True HDR decode
+
+```mermaid
+flowchart LR
+    A[Ultra HDR JPEG] --> B[libultrahdr decoder]
+    B -->|64bpp RGBA half-float<br/>linear transfer| C[Linear BT.709 HDR]
+    C --> D[HDRData FP32<br/>1.0 = 203 nits]
+    C --> E[Tone mapping<br/>Reinhard / ACES / Uncharted 2]
+    E --> F[SDR RGBA8 texture]
+    D --> G[HDR display path]
+```
+
+### Android HDR10 output
+
+```mermaid
+flowchart LR
+    H[HDRData FP16] --> T[RGBA16F texture]
+    T --> S[GLES3 shader<br/>BT.709 → BT.2020 → PQ]
+    S --> EGL[10-bit EGL surface<br/>BT2020/PQ]
+
+    UI[ImGui draw data] --> FBO[SDR RGBA8 FBO]
+    FBO --> C[Composite shader<br/>sRGB → BT.2020 → PQ<br/>400-nit UI white]
+    C --> EGL
+```
+
+The UI is rendered into an SDR offscreen buffer first, so panel colors and alpha blending behave
+exactly like SDR. A final full-screen pass converts the UI to PQ and composites it over the HDR image.
+
+### Backend layout
+
+```mermaid
+flowchart TB
+    App[Application / UI]
+    App --> Loader[Image loader<br/>libultrahdr + stb_image]
+    App --> GL[OpenGL backend<br/>SDR]
+    App --> VK[Vulkan backend<br/>SDR / scRGB / HDR10]
+    App --> AND[Android backend<br/>EGL + GLES3<br/>SDR / HDR10]
+```
 
 ## Dependencies
 
@@ -23,9 +95,10 @@ An Ultra HDR image viewer built with [Dear ImGui](https://github.com/ocornut/img
 | GLFW | 3.4 | Window/input management (desktop) |
 | Dear ImGui | v1.91.8 | GUI framework |
 | libultrahdr | v1.4.0 | Ultra HDR decoding |
+| libjpeg-turbo | 3.0.1 | JPEG codec used by libultrahdr |
 | Vulkan SDK | 1.0+ | Vulkan backend (optional, desktop) |
 
-Android rendering uses the platform EGL + OpenGL ES 3 APIs directly (no SDL2 dependency).
+Android rendering uses the platform **EGL + OpenGL ES 3** APIs directly; SDL2 is not required.
 
 ## Building
 
@@ -34,81 +107,80 @@ Android rendering uses the platform EGL + OpenGL ES 3 APIs directly (no SDL2 dep
 ```bat
 clone_deps.bat
 ```
+
 ```bash
 # Linux/macOS
 ./clone_deps.sh
 ```
 
-This downloads GLFW/SDL2, Dear ImGui, and libultrahdr source to `deps/`, and automatically applies build patches.
+This downloads GLFW, Dear ImGui, libultrahdr, libjpeg-turbo and stb_image into `deps/`, and applies
+the CMake patches needed for sub-project builds.
 
-### 2. Configure & build
-
-#### Desktop (Windows)
-
-**Recommended: Ninja (requires Ninja + Clang or MSVC)**
+### 2. Desktop (Windows)
 
 ```bat
-:: Debug
-cmake -B build\debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUHDR_VIEWER_VULKAN=OFF
-cmake --build build\debug
-
-:: Release
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DUHDR_VIEWER_VULKAN=OFF
-cmake --build build
-```
-
-**Or Visual Studio (cmake >= 3.21 for VS 2026)**
-
-```bat
-:: OpenGL backend
+:: Configure
 cmake --preset vs2026-opengl
-cmake --build build --config Release
 
-:: Vulkan backend
-cmake --preset vs2026-vulkan
-cmake --build build --config Release
+:: Build (Debug or Release)
+cmake --build out/build/vs2026-opengl --config Release
+
+:: Run
+out\build\vs2026-opengl\bin\Release\UltraHDRViewer.exe
 ```
 
-**Run desktop build:**
+Vulkan backend (HDR output):
+
 ```bat
-:: Default OpenGL backend
-build\bin\UltraHDRViewer.exe
-
-:: Vulkan backend
-build\bin\UltraHDRViewer.exe --vulkan
+cmake --preset vs2026-vulkan
+cmake --build out/build/vs2026-vulkan --config Release
+out\build\vs2026-vulkan\bin\Release\UltraHDRViewer.exe --vulkan
 ```
 
-#### Android
+Ninja presets are also available: `ninja-debug` and `ninja-release`.
 
-Requirements: JDK 17, Android SDK Platform 37 (Android 17), Build-Tools 36+, NDK 28.2.
+### 3. Android (Android 17 / API 37)
 
-The repository includes a setup script that installs the toolchain into `.tools/`
-(project-local, no system changes):
+The repository includes a setup script that installs a project-local toolchain into `.tools/`
+(no system-wide changes):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File android\setup_android_sdk.ps1
 ```
 
-Then build:
+Build and install:
 
 ```powershell
 cd android
 $env:JAVA_HOME="$PWD\..\.tools\jdk-17"
 .\gradlew.bat assembleDebug
-```
 
-The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
-
-Install via ADB:
-```powershell
+# APK: android/app/build/outputs/apk/debug/app-debug.apk
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-Usage on device:
-- Tap **Open Image** (or the empty image area) to pick an image through the system document picker.
-- Images can also be opened with `ACTION_VIEW` / `ACTION_SEND` from a file manager or gallery.
+Android toolchain:
+
+| Item | Version |
+|---|---|
+| JDK | 17 (Temurin) |
+| Android Gradle Plugin | 9.1.1 |
+| Gradle | 9.3.1 |
+| compileSdk / targetSdk | 37 (Android 17) |
+| minSdk | 24 |
+| Build-Tools | 36.0.0 / 37.0.0 |
+| NDK | 28.2.13676358 |
+| CMake | 3.22.1 |
+| ABI | `arm64-v8a`, `x86_64` |
+| 16 KB page size | Supported (AGP 9.1 + NDK r28, aligned ELF segments) |
+
+#### Using the Android app
+
+- Tap **Open Image** (or the empty image area) to pick a file through the system document picker.
+- Images can also be opened from a file manager or share sheet (`ACTION_VIEW` / `ACTION_SEND`).
 - Single-finger drag pans, pinch zooms, double-tap resets to fit.
 - **HDR Output (PQ)** is enabled automatically for Ultra HDR images on HDR10-capable displays.
+- The controls panel adapts to portrait and landscape layouts.
 
 ## Command Line Options (Desktop)
 
@@ -136,77 +208,95 @@ Usage on device:
 
 ### Desktop (Vulkan only)
 
-On HDR-capable displays the app can output true HDR instead of tone-mapped SDR:
-
-- **Requirements**: Vulkan backend (`--vulkan`), an HDR-capable display with HDR enabled in Windows settings, and an image with real HDR data (Ultra HDR).
-- **Toggle**: `H` key or *View → HDR 输出*. scRGB (FP16 linear) is preferred; HDR10 (PQ/BT.2020) is used as fallback. Moving the window to an SDR display falls back to SDR automatically.
-- **OpenGL backend is SDR-only by design**: Windows WGL has no HDR swapchain mechanism (no way to set scRGB/HDR10 color space on the window framebuffer), so HDR output is impossible there — use `--vulkan` instead.
-- **Testing on an SDR machine**: set `UHDR_MOCK_HDR_OUTPUT=scrgb` (or `hdr10` / `both`) to simulate an HDR display. The full activation path runs (pipeline, FP16 texture, shaders, style baking); the real swapchain stays SDR and values > 1.0 are simply clamped.
+- **Requirements**: Vulkan backend (`--vulkan`), an HDR-capable display with HDR enabled in Windows,
+  and an image with real HDR data.
+- **Toggle**: `H` or *View → HDR 输出*. scRGB (FP16 linear) is preferred; HDR10 (PQ/BT.2020) is the
+  fallback. Moving the window to an SDR display falls back to SDR automatically.
+- **OpenGL is SDR-only by design**: WGL has no HDR swapchain mechanism, so HDR output is impossible
+  on that backend.
+- **Testing on an SDR machine**: set `UHDR_MOCK_HDR_OUTPUT=scrgb` (or `hdr10` / `both`) to exercise the
+  full activation path; the real swapchain stays SDR and values above 1.0 are clamped.
 
 ### Android (HDR10 / PQ)
 
 - **Requirements**: an HDR10-capable Android display and an Ultra HDR image with real HDR data.
-- **How it works**: the app creates a 10-bit EGL window surface with `EGL_GL_COLORSPACE_BT2020_PQ_EXT`, uploads the decoded image as an RGBA16F texture, and converts linear BT.709 → BT.2020 → ST2084 (PQ) in a GLES3 shader. SMPTE 2086 / CTA-861.3 metadata is published when the driver exposes the extensions.
-- **Toggle**: **HDR Output (PQ)** in the controls panel. It is enabled automatically for Ultra HDR images and disabled again for SDR images.
-- **Fallback**: if the device or driver lacks `EGL_EXT_gl_colorspace_bt2020_pq` or a 10-bit EGL config, the app stays on the SDR path and disables the toggle.
-- ImGui renders into an SDR RGBA8 offscreen buffer; a final shader converts it (sRGB → BT.2020 → PQ at a 400-nit UI white point) and composites it over the HDR image, preserving panel colors and alpha blending.
+- **How it works**: a 10-bit EGL window surface is created with
+  `EGL_GL_COLORSPACE_BT2020_PQ_EXT`; the decoded image is uploaded as an RGBA16F texture and converted
+  from linear BT.709 to BT.2020 / ST2084 (PQ) in a GLES3 shader. SMPTE 2086 and CTA-861.3 metadata are
+  published when the driver exposes the extensions.
+- **Toggle**: **HDR Output (PQ)** in the controls panel. It is enabled automatically for Ultra HDR
+  images and disabled for SDR images.
+- **Fallback**: if `EGL_EXT_gl_colorspace_bt2020_pq` or a 10-bit EGL config is unavailable, the app
+  stays on the SDR path and disables the toggle.
+- **UI**: ImGui renders into an SDR RGBA8 offscreen buffer; a final shader converts it
+  (sRGB → BT.2020 → PQ at a 400-nit UI white point) and composites it over the HDR image.
+
+## Testing
+
+Host unit tests (decode, tone mapping, EXIF, color math):
+
+```powershell
+cmake --preset vs2026-opengl
+cmake --build out/build/vs2026-opengl --config Debug
+ctest --test-dir out/build/vs2026-opengl -C Debug --output-on-failure
+```
+
+Android-specific host tests (`AndroidLoaderTests`) verify that the Android decoder really produces
+values above SDR white (`maxLinear > 1.0`). Device verification was performed on an Android 17 phone
+with an HDR10 display (3200-nit peak): 10-bit BT.2020/PQ activation, a 3072×4096 Ultra HDR photo,
+HDR toggling, file opening, gestures, rotation and lifecycle transitions all passed.
+
+Static APK checks:
+
+```powershell
+# targetSdk / ABI
+.tools\android-sdk\build-tools\37.0.0\aapt2.exe dump badging android\app\build\outputs\apk\debug\app-debug.apk
+
+# 16 KB zip alignment
+.tools\android-sdk\build-tools\37.0.0\zipalign.exe -c -P 16 -v 4 android\app\build\outputs\apk\debug\app-debug.apk
+
+# ELF LOAD segments should show align 2**14
+.tools\android-sdk\ndk\28.2.13676358\toolchains\llvm\prebuilt\windows-x86_64\bin\llvm-objdump.exe -p lib\arm64-v8a\libuhdrviewer.so
+```
 
 ## Project Structure
 
 ```
 UltraHDRViewer_Imgui/
-├── CMakeLists.txt          # CMake build configuration (desktop)
-├── CMakePresets.json        # VS 2026 build presets
-├── clone_deps.bat           # Dependency cloner (Windows)
-├── clone_deps.sh            # Dependency cloner (Linux/macOS)
-├── deps/                    # Dependency sources (after clone)
-│   ├── glfw/                # GLFW 3.4 (desktop)
-│   ├── imgui/               # Dear ImGui
-│   ├── libultrahdr/         # libultrahdr + third_party/turbojpeg
-│   └── stb_image.h          # stb_image
-├── src/                     # Desktop app source
-│   ├── main.cpp             # Entry point
-│   ├── app.h / app.cpp      # Application logic + UI
-│   ├── renderer.h           # Renderer interface
-│   ├── renderer_gl.h/cpp    # OpenGL backend
-│   ├── renderer_vk.h/cpp    # Vulkan backend
-│   ├── image_loader.h/cpp   # Ultra HDR image loading
-│   ├── exif_parser.h/cpp    # EXIF metadata parser
-│   ├── file_dialog.h/cpp    # Native file dialog
-│   └── stb_image_impl.cpp   # stb_image implementation
-└── android/                 # Android project
-    ├── setup_android_sdk.ps1  # Installs JDK 17 + SDK 37 + NDK r28 into .tools/
+├── CMakeLists.txt            # Desktop CMake configuration
+├── CMakePresets.json         # VS 2026 / Ninja presets
+├── clone_deps.bat / .sh      # Dependency cloner
+├── docs/images/              # README banner and screenshots
+├── src/                      # Desktop source
+│   ├── main.cpp              # Entry point
+│   ├── app.h / app.cpp       # Application logic + UI
+│   ├── renderer.h            # Renderer interface + ImageData/HDRData
+│   ├── renderer_gl.h/cpp     # OpenGL backend (SDR)
+│   ├── renderer_vk.h/cpp     # Vulkan backend (scRGB / HDR10)
+│   ├── colorspace.h          # PQ / BT.2020 / nit math
+│   ├── half_float.h          # half ↔ float conversion
+│   ├── image_loader.h/cpp    # True HDR decode
+│   ├── tonemap.h/cpp         # Tone mapping
+│   ├── exif_parser.h/cpp     # EXIF parser
+│   ├── file_dialog.h/cpp     # Win32 file dialog
+│   └── shaders/              # HDR quad shaders + SPIR-V headers
+├── tests/                    # GoogleTest suites
+└── android/
+    ├── setup_android_sdk.ps1 # Installs JDK/SDK/NDK/CMake into .tools/
     ├── app/
-    │   ├── build.gradle      # App module config (AGP 9.1, NDK 28.2, targetSdk 37)
+    │   ├── build.gradle      # AGP 9.1, NDK 28.2, targetSdk 37
     │   └── src/main/
     │       ├── AndroidManifest.xml
     │       ├── java/com/uhdrviewer/MainActivity.java
     │       └── cpp/
-    │           ├── CMakeLists.txt   # turbojpeg + libultrahdr + ImGui (GLES3)
-    │           ├── native.cpp        # EGL/GLES render thread, touch input, UI
-    │           ├── egl_context.cpp   # EGL HDR10/SDR surface + metadata
-    │           ├── hdr_gles.cpp      # PQ shader + FP16 texture + style baking
-    │           ├── hdr_types.h       # Shared data structures
-    │           ├── image_loader_android.cpp  # True HDR decode
-    │           └── exif_parser_android.cpp   # EXIF parsing
-    └── gradle/              # Gradle 9.3.1 + wrapper
-```
-
-## Architecture
-
-```
-┌──────────────────────────────────────┐
-│              Application             │
-│  (UI logic, input handling, layout)  │
-├──────────┬───────────┬───────────────┤
-│ ImageLoader │ FileDialog │   Renderer   │
-│ (libultrahdr│(Win32 API) │  (interface) │
-│  decode)    │            │              │
-├─────────────┴────────────┼──────────────┤
-│                          │              │
-│                     OpenGL│  Vulkan      │
-│                     Backend│  Backend    │
-└──────────────────────────┴──────────────┘
+    │           ├── CMakeLists.txt           # turbojpeg + libultrahdr + ImGui (GLES3)
+    │           ├── native.cpp               # EGL/GLES render thread, touch, UI
+    │           ├── egl_context.cpp          # HDR10/SDR EGL surface + metadata
+    │           ├── hdr_gles.cpp             # PQ image shader + SDR UI FBO compositor
+    │           ├── hdr_types.h              # Shared data structures
+    │           ├── image_loader_android.cpp # True HDR decode
+    │           └── exif_parser_android.cpp  # EXIF parsing
+    └── gradle/              # Gradle 9.3.1 wrapper
 ```
 
 ## License
@@ -214,3 +304,4 @@ UltraHDRViewer_Imgui/
 - Dear ImGui: MIT License
 - libultrahdr: Apache 2.0 License
 - GLFW: zlib/libpng License
+- libjpeg-turbo: BSD-style / IJG licenses

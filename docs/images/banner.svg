@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-label="Ultra HDR Viewer">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="0.55" stop-color="#16233f"/>
+      <stop offset="1" stop-color="#3b2a18"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4f9dff"/>
+      <stop offset="0.5" stop-color="#f2c46d"/>
+      <stop offset="1" stop-color="#ff7a59"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="260" rx="18" fill="url(#bg)"/>
+  <rect x="0" y="248" width="1200" height="12" rx="6" fill="url(#bar)"/>
+  <text x="64" y="116" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="700">Ultra HDR Viewer</text>
+  <text x="64" y="162" fill="#b9c6dd" font-family="Segoe UI, Arial, sans-serif" font-size="24">True HDR decode · HDR10 / scRGB output · Windows &amp; Android</text>
+  <text x="64" y="204" fill="#7d8aa3" font-family="Consolas, monospace" font-size="18">libultrahdr · Dear ImGui · OpenGL / Vulkan / EGL</text>
+</svg>
